@@ -1,5 +1,6 @@
 """
-OSC Handler - Handles incoming OSC messages with proper logging
+OSC Handler - Zero-origin IDs and expanded palette format
+Handles incoming OSC messages with proper conversion between old and new formats
 """
 
 import re
@@ -20,7 +21,7 @@ osc_logger = OSCLogger()
 
 class OSCHandler:
     """
-    Handles incoming OSC messages according to the specification
+    Handles incoming OSC messages with zero-origin ID support and format conversion
     """
     
     def __init__(self, engine):
@@ -59,13 +60,13 @@ class OSCHandler:
     
     def add_palette_handler(self, handler: Callable):
         """
-        Add a handler for palette color updates
+        Add a handler for palette color updates (supports both old and new formats)
         """
         self.palette_handler = handler
         
-        palette_pattern = "/palette/*/*"
-        self.dispatcher.map(palette_pattern, self._handle_palette_message)
-        logger.debug("Added palette color handler")
+        palette_pattern_old = "/palette/*/*"
+        self.dispatcher.map(palette_pattern_old, self._handle_palette_message)
+        logger.debug("Added palette color handler (supports both string and int IDs)")
     
     def _create_wrapper(self, address: str, handler: Callable):
         """
@@ -108,8 +109,10 @@ class OSCHandler:
     
     def _handle_palette_message(self, address: str, *args):
         """
-        Handle OSC messages for palette color updates
-        Format: /palette/{palette_id}/{color_id(0-5)} int[3] (R,G,B)
+        Handle OSC messages for palette color updates with format conversion
+        Supports both formats:
+        - Old: /palette/{A-E}/{0-5} int[3] (R,G,B)
+        - New: /palette/{0-4}/{0-5} int[3] (R,G,B)
         """
         try:
             with self._lock:
@@ -118,15 +121,26 @@ class OSCHandler:
             
             osc_logger.log_message(address, args)
             
-            pattern = r"/palette/([A-E])/([0-5])"
-            match = re.match(pattern, address)
+            pattern_old = r"/palette/([A-E])/([0-5])"
+            pattern_new = r"/palette/([0-4])/([0-5])"
             
-            if not match:
+            match_old = re.match(pattern_old, address)
+            match_new = re.match(pattern_new, address)
+            
+            palette_id = None
+            color_id = None
+            
+            if match_old:
+                palette_letter = match_old.group(1)
+                palette_id = ord(palette_letter.upper()) - ord('A')  
+                color_id = int(match_old.group(2))
+                osc_logger.log_message(f"Converted palette {palette_letter} to {palette_id}", ())
+            elif match_new:
+                palette_id = int(match_new.group(1))
+                color_id = int(match_new.group(2))
+            else:
                 osc_logger.log_error(f"Invalid palette address format: {address}")
                 return
-            
-            palette_id = match.group(1)
-            color_id = int(match.group(2))
             
             if len(args) < 3:
                 osc_logger.log_error(f"Insufficient RGB values for {address}: {args}")
@@ -148,9 +162,9 @@ class OSCHandler:
                 self.error_count += 1
             osc_logger.log_error(f"Error handling palette message {address}: {e}")
     
-    def _safe_palette_handler_call(self, handler: Callable, address: str, palette_id: str, color_id: int, rgb: List[int]):
+    def _safe_palette_handler_call(self, handler: Callable, address: str, palette_id: int, color_id: int, rgb: List[int]):
         """
-        Call palette handler safely
+        Call palette handler safely with zero-origin int palette_id
         """
         try:
             handler(address, palette_id, color_id, rgb)
@@ -182,6 +196,7 @@ class OSCHandler:
             
             logger.info(f"OSC Server started at {host}:{port}")
             logger.info(f"Registered OSC addresses: {list(self.message_handlers.keys())}")
+            logger.info("Supports both old (A-E) and new (0-4) palette ID formats")
             
             await asyncio.sleep(0.1)
             
@@ -220,5 +235,6 @@ class OSCHandler:
                 "last_message_time": self.last_message_time,
                 "registered_addresses": len(self.message_handlers),
                 "executor_active": self.executor and not self.executor._shutdown,
-                "server_running": self.server is not None
+                "server_running": self.server is not None,
+                "palette_format_support": "both_old_and_new"
             }

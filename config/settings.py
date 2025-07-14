@@ -1,5 +1,5 @@
 """
-Engine settings configuration optimized for terminal and background operation
+Engine settings configuration for zero-origin IDs and expanded features
 Provides comprehensive configuration for all engine components
 """
 
@@ -28,24 +28,48 @@ class OSCConfig(BaseModel):
         return v.strip()
 
 
+class LEDDestination(BaseModel):
+    """
+    LED output destination configuration for multi-device support
+    """
+    ip: str = Field(description="Target IP address")
+    port: int = Field(description="Target port", ge=1024, le=65535)
+    start_led: int = Field(default=0, description="Start LED index for range mode", ge=0)
+    end_led: int = Field(default=-1, description="End LED index for range mode (-1 means full range)")
+    copy_mode: bool = Field(default=True, description="True=full copy, False=range mode")
+    enabled: bool = Field(default=True, description="Enable this destination")
+    name: str = Field(default="", description="Human-readable name for this destination")
+    
+    @validator('name', pre=True, always=True)
+    def set_default_name(cls, v, values):
+        """Set default name if not provided"""
+        if not v and 'ip' in values:
+            return f"Device_{values['ip']}"
+        return v
+
+
 class AnimationConfig(BaseModel):
     """
-    Animation engine configuration
+    Animation engine configuration with expanded features
     """
     target_fps: int = Field(default=60, description="Target animation FPS", ge=1, le=120)
     led_count: int = Field(default=225, description="Total number of LEDs", ge=1, le=10000)
     master_brightness: int = Field(default=0, description="Master brightness level", ge=0, le=255)
     default_dissolve_time: int = Field(default=1000, description="Default dissolve time in ms", ge=0)
     
-    led_destinations: List[Dict[str, Any]] = Field(
-        default=[
-            {"ip": "192.168.11.105", "port": 7000, "enabled": True},
+    led_destinations: List[LEDDestination] = Field(
+        default_factory=lambda: [
+            LEDDestination(ip="192.168.11.105", port=7000, enabled=True, copy_mode=True, name="Device_0")
         ],
         description="LED output destinations"
     )
     
     performance_mode: str = Field(default="balanced", description="Performance mode: high, balanced, or efficient")
     max_frame_time_ms: float = Field(default=50.0, description="Maximum allowed frame processing time")
+    
+    speed_range_max: int = Field(default=1023, description="Maximum speed percentage (expanded from 200% to 1023%)")
+    fractional_positioning: bool = Field(default=True, description="Enable fractional positioning with fade effects")
+    time_based_dimmer: bool = Field(default=True, description="Enable time-based dimmer instead of position-based")
     
     @validator('led_destinations')
     def validate_destinations(cls, v):
@@ -54,11 +78,11 @@ class AnimationConfig(BaseModel):
             raise ValueError("At least one LED serial output must be configured")
         
         for dest in v:
-            if 'ip' not in dest or 'port' not in dest:
-                raise ValueError("Each LED serial output must have 'ip' and 'port'")
+            if not hasattr(dest, 'ip') or not hasattr(dest, 'port'):
+                raise ValueError("Each LED destination must have 'ip' and 'port' attributes")
             
-            if not (1024 <= dest['port'] <= 65535):
-                raise ValueError(f"Port {dest['port']} must be between 1024 and 65535")
+            if not (1024 <= dest.port <= 65535):
+                raise ValueError(f"Port {dest.port} must be between 1024 and 65535")
         
         return v
 
@@ -76,6 +100,18 @@ class PatternTransitionConfig(BaseModel):
     transition_curve: str = Field(default="linear", description="Transition curve: linear, ease_in, ease_out, ease_in_out")
 
 
+class DissolveConfig(BaseModel):
+    """
+    Dissolve transition system configuration
+    """
+    enabled: bool = Field(default=True, description="Enable dissolve transition system")
+    default_pattern_id: int = Field(default=0, description="Default dissolve pattern ID (zero-origin)")
+    patterns_file: str = Field(default="src/data/jsons/dissolve_pattern.json", description="Dissolve patterns JSON file")
+    
+    max_simultaneous_transitions: int = Field(default=10, description="Maximum simultaneous LED transitions")
+    transition_precision_ms: int = Field(default=10, description="Transition timing precision in milliseconds")
+
+
 class LoggingConfig(BaseModel):
     """
     Logging system configuration
@@ -90,6 +126,9 @@ class LoggingConfig(BaseModel):
     performance_logging: bool = Field(default=True, description="Enable performance metrics logging")
     osc_message_logging: bool = Field(default=True, description="Enable OSC message logging")
     detailed_errors: bool = Field(default=True, description="Include stack traces in error logs")
+    
+    id_system_logging: bool = Field(default=True, description="Log ID system conversions (old to new format)")
+    timing_system_logging: bool = Field(default=False, description="Log detailed timing system operations")
     
     @validator('level')
     def validate_log_level(cls, v):
@@ -114,6 +153,9 @@ class PerformanceConfig(BaseModel):
     profiling_enabled: bool = Field(default=False, description="Enable detailed profiling")
     memory_monitoring: bool = Field(default=True, description="Enable memory usage monitoring")
     cpu_monitoring: bool = Field(default=True, description="Enable CPU usage monitoring")
+    
+    fractional_rendering_optimization: bool = Field(default=True, description="Optimize fractional position rendering")
+    time_based_optimization: bool = Field(default=True, description="Optimize time-based calculations")
 
 
 class BackgroundConfig(BaseModel):
@@ -132,9 +174,12 @@ class BackgroundConfig(BaseModel):
     save_state_on_exit: bool = Field(default=True, description="Save engine state on exit")
 
 
+
+
+
 class EngineSettings:
     """
-    Main engine configuration container
+    Main engine configuration container with zero-origin ID support
     Handles loading, validation, and access to all configuration sections
     """
     
@@ -143,22 +188,75 @@ class EngineSettings:
         self.OSC = OSCConfig()
         self.ANIMATION = AnimationConfig()
         self.PATTERN_TRANSITION = PatternTransitionConfig()
+        self.DISSOLVE = DissolveConfig()
         self.LOGGING = LoggingConfig()
         self.PERFORMANCE = PerformanceConfig()
         self.BACKGROUND = BackgroundConfig()
         
         self.DATA_DIRECTORY = Path("src/data")
         self.LOGS_DIRECTORY = Path(self.LOGGING.log_directory)
+        self.JSONS_DIRECTORY = Path("src/data/jsons")
 
         self.ensure_directories()
+        self._log_new_features()
     
     def ensure_directories(self):
         """Ensure required directories exist"""
         try:
             self.DATA_DIRECTORY.mkdir(parents=True, exist_ok=True)
             self.LOGS_DIRECTORY.mkdir(parents=True, exist_ok=True)
+            self.JSONS_DIRECTORY.mkdir(parents=True, exist_ok=True)
             
         except Exception as e:
             print(f"Error creating directories: {e}")
-
+    
+    def _log_new_features(self):
+        """Log information about new features and changes"""
+        if self.LOGGING.id_system_logging:
+            print("Engine Configuration:")
+            print(f"  - Zero-origin ID system: Enabled")
+            print(f"  - Expanded speed range: 0-{self.ANIMATION.speed_range_max}%")
+            print(f"  - Fractional positioning: {self.ANIMATION.fractional_positioning}")
+            print(f"  - Time-based dimmer: {self.ANIMATION.time_based_dimmer}")
+    
+    def get_led_destinations(self) -> List[LEDDestination]:
+        """Get validated LED destinations"""
+        return self.ANIMATION.led_destinations
+    
+    def validate_configuration(self) -> bool:
+        """Validate entire configuration"""
+        try:
+            # Validate basic settings
+            if self.ANIMATION.target_fps <= 0:
+                raise ValueError("target_fps must be positive")
+            
+            if self.ANIMATION.led_count <= 0:
+                raise ValueError("led_count must be positive")
+            
+            if not (0 <= self.ANIMATION.master_brightness <= 255):
+                raise ValueError("master_brightness must be 0-255")
+            
+            if not (0 <= self.ANIMATION.speed_range_max <= 1023):
+                raise ValueError("speed_range_max must be 0-1023")
+            
+            # Validate LED destinations
+            destinations = self.get_led_destinations()
+            if not destinations:
+                raise ValueError("At least one LED destination must be configured")
+            
+            for dest in destinations:
+                if not hasattr(dest, 'ip') or not dest.ip:
+                    raise ValueError("LED destination missing IP address")
+                if not hasattr(dest, 'port') or not (1024 <= dest.port <= 65535):
+                    raise ValueError("LED destination invalid port")
+            
+            if not self.DATA_DIRECTORY.exists():
+                raise ValueError(f"Data directory does not exist: {self.DATA_DIRECTORY}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Configuration validation error: {e}")
+            return False
+   
 EngineSettings = EngineSettings()

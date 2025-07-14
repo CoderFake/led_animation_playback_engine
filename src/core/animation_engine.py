@@ -1,6 +1,6 @@
 """
-LED Animation Playback Engine - Terminal Optimized
-High-performance animation engine designed for background operation
+LED Animation Playback Engine - Zero-origin IDs and Expanded Speed Range
+Supports time-based rendering and speed range 0-1023%
 """
 
 import asyncio
@@ -32,7 +32,7 @@ class EngineStats:
     total_leds: int = 225
     animation_time: float = 0.0
     master_brightness: int = 255
-    speed_percent: int = 100
+    speed_percent: int = 100  
     dissolve_time: int = 1000
     memory_usage_mb: float = 0.0
     cpu_usage_percent: float = 0.0
@@ -40,8 +40,8 @@ class EngineStats:
 
 class AnimationEngine:
     """
-    The main LED Animation Playback Engine optimized for terminal/background operation
-    Handles real-time animation processing, OSC communication, and LED output
+    Main LED Animation Playback Engine with zero-origin IDs and expanded speed range
+    Handles real-time animation processing with time-based rendering and fractional positioning
     """
     
     def __init__(self):
@@ -83,13 +83,13 @@ class AnimationEngine:
         
         self._setup_osc_handlers()
         
-        logger.info(f"AnimationEngine initialized")
+        logger.info(f"AnimationEngine initialized with zero-origin ID system")
         logger.info(f"Target: {self.target_fps} FPS, {self.stats.total_leds} LEDs")
-        logger.info(f"Frame interval: {self.frame_interval*1000:.2f}ms")
+        logger.info(f"Speed range: 0-1023%, Frame interval: {self.frame_interval*1000:.2f}ms")
     
     def _setup_osc_handlers(self):
         """
-        Configure OSC message handlers for engine control
+        Configure OSC message handlers for engine control with zero-origin IDs
         """
         handlers = {
             "/load_json": self.handle_load_json,
@@ -209,8 +209,7 @@ class AnimationEngine:
     
     def _animation_loop(self):
         """
-        Main high-performance animation loop
-        Optimized for consistent timing and minimal latency
+        Main high-performance animation loop with time-based rendering
         """
         logger.info(f"Animation loop started - Target: {self.target_fps} FPS")
         
@@ -229,7 +228,7 @@ class AnimationEngine:
                     delta_time = frame_start - self.last_frame_time
                     self.last_frame_time = frame_start
                     
-                    self._update_frame(delta_time)
+                    self._update_frame(delta_time, frame_start)
                 
                 with self._lock:
                     self.frame_count += 1
@@ -302,7 +301,7 @@ class AnimationEngine:
             
             efficiency = (average_fps / self.target_fps) * 100
             
-            logger.info(f"Frame {self.frame_count}: FPS {average_fps:.1f} ({efficiency:.1f}%), Active LEDs {self.stats.active_leds}")
+            logger.info(f"Frame {self.frame_count}: FPS {average_fps:.1f} ({efficiency:.1f}%), Speed {self.speed_percent}%, Active LEDs {self.stats.active_leds}")
             
             if efficiency < 90:
                 logger.warning(f"Performance below target: {efficiency:.1f}%")
@@ -338,7 +337,7 @@ class AnimationEngine:
             stats_copy.actual_fps = self.stats.actual_fps
             stats_copy.frame_count = self.frame_count
             
-            led_colors = self.scene_manager.get_led_output()
+            led_colors = self.scene_manager.get_led_output_with_timing(time.time())
             active_leds = sum(1 for color in led_colors if any(c > 0 for c in color[:3]))
             stats_copy.active_leds = active_leds
             stats_copy.total_leds = self.stats.total_leds
@@ -352,22 +351,23 @@ class AnimationEngine:
             
             return stats_copy
     
-    def _update_frame(self, delta_time: float):
+    def _update_frame(self, delta_time: float, current_time: float):
         """
-        Update one animation frame with performance optimization
+        Update one animation frame with time-based rendering and expanded speed range
         """
         try:
             with self._lock:
                 speed_percent = self.speed_percent
                 master_brightness = self.master_brightness
             
+            # Apply speed multiplier with expanded range 0-1023%
             adjusted_delta = delta_time * (speed_percent / 100.0)
             
             with self.profiler.get_timer("scene_update"):
                 self.scene_manager.update_animation(adjusted_delta)
             
             with self.profiler.get_timer("led_calculation"):
-                led_colors = self.scene_manager.get_led_output()
+                led_colors = self.scene_manager.get_led_output_with_timing(current_time)
             
             if master_brightness < 255:
                 with self.profiler.get_timer("brightness_adjustment"):
@@ -407,9 +407,9 @@ class AnimationEngine:
     
     def get_led_colors(self) -> List[List[int]]:
         """
-        Get current LED colors for external access
+        Get current LED colors for external access with time-based rendering
         """
-        led_colors = self.scene_manager.get_led_output()
+        led_colors = self.scene_manager.get_led_output_with_timing(time.time())
         
         if self.master_brightness < 255:
             brightness_factor = self.master_brightness / 255.0
@@ -423,6 +423,7 @@ class AnimationEngine:
     def handle_load_json(self, address: str, *args):
         """
         Handle OSC message to load a JSON scene file
+        Auto-append .json extension if missing
         """
         try:
             if not args or len(args) == 0:
@@ -430,6 +431,9 @@ class AnimationEngine:
                 return
             
             file_path = str(args[0])
+            
+            if not file_path.lower().endswith('.json'):
+                file_path += '.json'
             
             success = False
             
@@ -457,7 +461,7 @@ class AnimationEngine:
     
     def handle_change_scene(self, address: str, *args):
         """
-        Handle OSC message to change the active scene
+        Handle OSC message to change the active scene (zero-origin ID)
         """
         try:
             if not args or len(args) == 0:
@@ -485,7 +489,7 @@ class AnimationEngine:
     
     def handle_change_effect(self, address: str, *args):
         """
-        Handle OSC message to change the current effect
+        Handle OSC message to change the current effect (zero-origin ID)
         """
         try:
             if not args or len(args) == 0:
@@ -513,42 +517,51 @@ class AnimationEngine:
     
     def handle_change_palette(self, address: str, *args):
         """
-        Handle OSC message to change the current palette
+        Handle OSC message to change the current palette (zero-origin int ID)
         """
         try:
             if not args or len(args) == 0:
                 logger.warning("Missing palette ID argument")
                 return
             
-            palette_id = str(args[0])
-            
-            with self._lock:
-                success = self.scene_manager.set_palette(palette_id)
+            try:
+                palette_id = int(args[0])
+                
+                with self._lock:
+                    success = self.scene_manager.set_palette(palette_id)
+                    if success:
+                        self._notify_state_change()
+                
                 if success:
-                    self._notify_state_change()
-            
-            if success:
-                logger.operation("change_palette", f"Palette changed to {palette_id}")
-            else:
-                logger.warning(f"Failed to set palette: {palette_id}")
+                    logger.operation("change_palette", f"Palette changed to {palette_id}")
+                else:
+                    logger.warning(f"Failed to set palette: {palette_id}")
+                    
+            except ValueError:
+                logger.error(f"Invalid palette ID: {args[0]}")
                 
         except Exception as e:
             logger.error(f"Error in handle_change_palette: {e}")
     
     def handle_palette_color(self, address: str, palette_id: str, color_id: int, rgb: List[int]):
         """
-        Handle OSC message to update a palette color
+        Handle OSC message to update a palette color (convert string ID to zero-origin int)
         """
         try:
+            if isinstance(palette_id, str):
+                palette_int_id = ord(palette_id.upper()) - ord('A') if palette_id else 0
+            else:
+                palette_int_id = int(palette_id)
+            
             with self._lock:
-                success = self.scene_manager.update_palette_color(palette_id, color_id, rgb)
+                success = self.scene_manager.update_palette_color(palette_int_id, color_id, rgb)
                 if success:
                     self._notify_state_change()
             
             if success:
-                logger.operation("palette_color", f"Palette {palette_id}[{color_id}] = RGB({rgb[0]},{rgb[1]},{rgb[2]})")
+                logger.operation("palette_color", f"Palette {palette_int_id}[{color_id}] = RGB({rgb[0]},{rgb[1]},{rgb[2]})")
             else:
-                logger.warning(f"Failed to update palette {palette_id} color {color_id}")
+                logger.warning(f"Failed to update palette {palette_int_id} color {color_id}")
                 
         except Exception as e:
             logger.error(f"Error in handle_palette_color: {e}")
@@ -577,7 +590,7 @@ class AnimationEngine:
     
     def handle_set_speed_percent(self, address: str, *args):
         """
-        Handle OSC message to set animation speed percentage
+        Handle OSC message to set animation speed percentage (expanded range 0-1023%)
         """
         try:
             if not args or len(args) == 0:
@@ -587,7 +600,7 @@ class AnimationEngine:
             try:
                 speed_percent = int(args[0])
                 with self._lock:
-                    self.speed_percent = max(0, min(200, speed_percent))
+                    self.speed_percent = max(0, min(1023, speed_percent))
                     self._notify_state_change()
                 logger.operation("set_speed_percent", f"Animation speed set to {self.speed_percent}%")
                 

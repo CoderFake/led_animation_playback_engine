@@ -1,7 +1,6 @@
 """
-Scene Manager - Terminal Optimized
-Handles scene loading, management, and pattern transitions
-Optimized for background operation with comprehensive error handling
+Scene Manager - Updated for zero-origin IDs and time-based rendering
+Supports expanded speed range 0-1023% and fractional positioning
 """
 
 import time
@@ -42,9 +41,9 @@ class PatternTransition:
     phase: TransitionPhase = TransitionPhase.COMPLETED
     
     from_effect_id: int = None
-    from_palette_id: str = None
+    from_palette_id: int = None  # Changed to int (zero-origin)
     to_effect_id: int = None
-    to_palette_id: str = None
+    to_palette_id: int = None  # Changed to int (zero-origin)
     
     start_time: float = 0.0
     fade_in_ms: int = 100
@@ -57,8 +56,8 @@ class PatternTransition:
 
 class SceneManager:
     """
-    Manages animation scenes, effects, and pattern transitions
-    Optimized for terminal operation with comprehensive monitoring
+    Manages animation scenes with zero-origin IDs and time-based rendering
+    Supports expanded speed range 0-1023% and fractional positioning
     """
     
     def __init__(self):
@@ -86,7 +85,7 @@ class SceneManager:
             'errors': 0
         }
         
-        logger.info("SceneManager initialized")
+        logger.info("SceneManager initialized with zero-origin ID system")
         logger.info(f"Pattern transitions: {'enabled' if EngineSettings.PATTERN_TRANSITION.enabled else 'disabled'}")
     
     async def initialize(self):
@@ -124,10 +123,10 @@ class SceneManager:
                         f"fade_out={self.transition_config.fade_out_ms}ms, "
                         f"waiting={self.transition_config.waiting_ms}ms")
     
-    def start_pattern_transition(self, to_effect_id: int = None, to_palette_id: str = None):
-        """Start a pattern transition between effects/palettes"""
+    def start_pattern_transition(self, to_effect_id: int = None, to_palette_id: int = None):
+        """Start a pattern transition between effects/palettes (zero-origin IDs)"""
         with self._lock:
-            if not self.active_scene_id or self.active_scene_id not in self.scenes:
+            if self.active_scene_id is None or self.active_scene_id not in self.scenes:
                 logger.warning("Cannot start transition: no active scene")
                 return False
             
@@ -137,9 +136,9 @@ class SceneManager:
             self.pattern_transition.phase = TransitionPhase.FADE_OUT
             
             self.pattern_transition.from_effect_id = current_scene.current_effect_id
-            self.pattern_transition.from_palette_id = current_scene.current_palette
-            self.pattern_transition.to_effect_id = to_effect_id or current_scene.current_effect_id
-            self.pattern_transition.to_palette_id = to_palette_id or current_scene.current_palette
+            self.pattern_transition.from_palette_id = current_scene.current_palette_id
+            self.pattern_transition.to_effect_id = to_effect_id if to_effect_id is not None else current_scene.current_effect_id
+            self.pattern_transition.to_palette_id = to_palette_id if to_palette_id is not None else current_scene.current_palette_id
             
             self.pattern_transition.fade_in_ms = self.transition_config.fade_in_ms
             self.pattern_transition.fade_out_ms = self.transition_config.fade_out_ms
@@ -190,7 +189,7 @@ class SceneManager:
             
         scene = self.scenes[self.active_scene_id]
         scene.current_effect_id = self.pattern_transition.to_effect_id
-        scene.current_palette = self.pattern_transition.to_palette_id
+        scene.current_palette_id = self.pattern_transition.to_palette_id
         
         self.pattern_transition.is_active = False
         self.pattern_transition.phase = TransitionPhase.COMPLETED
@@ -202,28 +201,33 @@ class SceneManager:
                         f"Palette {self.pattern_transition.to_palette_id}")
         self._notify_changes()
     
-    def get_led_output(self) -> List[List[int]]:
-        """Get current LED output with transition handling"""
+    def get_led_output_with_timing(self, current_time: float) -> List[List[int]]:
+        """Get LED output with time-based brightness and fractional positioning"""
         with self._lock:
             if not self.pattern_transition.is_active:
                 if self.active_scene_id and self.active_scene_id in self.scenes:
                     scene = self.scenes[self.active_scene_id]
-                    return scene.get_led_output()
-                return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
+                    return scene.get_led_output_with_timing(current_time)
+                return [[0, 0, 0] for _ in range(225)]  # Default LED count
             
-            return self._get_transition_led_output()
+            return self._get_transition_led_output_with_timing(current_time)
     
-    def _get_transition_led_output(self) -> List[List[int]]:
-        """Generate LED output during transitions"""
+    def get_led_output(self) -> List[List[int]]:
+        """Get current LED output (legacy method)"""
+        return self.get_led_output_with_timing(time.time())
+    
+    def _get_transition_led_output_with_timing(self, current_time: float) -> List[List[int]]:
+        """Generate LED output during transitions with timing"""
         if not self.active_scene_id or self.active_scene_id not in self.scenes:
-            return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
+            return [[0, 0, 0] for _ in range(225)]
         
         scene = self.scenes[self.active_scene_id]
+        led_count = scene.led_count
         
         if self.pattern_transition.phase == TransitionPhase.FADE_OUT:
             scene.current_effect_id = self.pattern_transition.from_effect_id
-            scene.current_palette = self.pattern_transition.from_palette_id
-            output = scene.get_led_output()
+            scene.current_palette_id = self.pattern_transition.from_palette_id
+            output = scene.get_led_output_with_timing(current_time)
             
             brightness = self.pattern_transition.progress
             return [
@@ -232,12 +236,12 @@ class SceneManager:
             ]
         
         elif self.pattern_transition.phase == TransitionPhase.WAITING:
-            return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
+            return [[0, 0, 0] for _ in range(led_count)]
         
         elif self.pattern_transition.phase == TransitionPhase.FADE_IN:
             scene.current_effect_id = self.pattern_transition.to_effect_id
-            scene.current_palette = self.pattern_transition.to_palette_id
-            output = scene.get_led_output()
+            scene.current_palette_id = self.pattern_transition.to_palette_id
+            output = scene.get_led_output_with_timing(current_time)
             
             brightness = self.pattern_transition.progress
             return [
@@ -245,7 +249,7 @@ class SceneManager:
                 for color in output
             ]
         
-        return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
+        return [[0, 0, 0] for _ in range(led_count)]
     
     def load_scene_from_file(self, file_path: str) -> bool:
         """Load a single scene from JSON file"""
@@ -259,7 +263,7 @@ class SceneManager:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 
-                if "scene_ID" in data:
+                if "scene_id" in data or "scene_ID" in data:
                     scene = Scene.from_dict(data)
                     self.scenes[scene.scene_id] = scene
                     
@@ -273,7 +277,7 @@ class SceneManager:
                     self._notify_changes()
                     return True
                 else:
-                    logger.warning(f"File {file_path} missing scene_ID - not a valid single scene format")
+                    logger.warning(f"File {file_path} missing scene_id - not a valid single scene format")
                     return False
                 
         except json.JSONDecodeError as e:
@@ -310,8 +314,8 @@ class SceneManager:
                 
                 for scene_data in scenes_data:
                     try:
-                        if "scene_ID" not in scene_data:
-                            logger.warning(f"Scene data missing scene_ID: {scene_data}")
+                        if "scene_id" not in scene_data and "scene_ID" not in scene_data:
+                            logger.warning(f"Scene data missing scene_id: {scene_data}")
                             continue
                             
                         scene = Scene.from_dict(scene_data)
@@ -346,28 +350,8 @@ class SceneManager:
             self.stats['errors'] += 1
             return False
     
-    def load_scene(self, scene_data: Dict[str, Any]) -> bool:
-        """Load scene from dictionary data"""
-        try:
-            with self._lock:
-                scene = Scene.from_dict(scene_data)
-                self.scenes[scene.scene_id] = scene
-                
-                if self.active_scene_id is None:
-                    self.active_scene_id = scene.scene_id
-                
-                self.stats['scenes_loaded'] += 1
-                self._notify_changes()
-                logger.operation("load_scene", f"Scene {scene.scene_id} loaded from data")
-                return True
-                
-        except Exception as e:
-            logger.error(f"Error loading scene from data: {e}")
-            self.stats['errors'] += 1
-            return False
-    
-    def switch_scene(self, scene_id: int, fade_params: List[int] = None) -> bool:
-        """Switch to a different scene"""
+    def switch_scene(self, scene_id: int) -> bool:
+        """Switch to a different scene using zero-origin ID"""
         try:
             with self._lock:
                 if scene_id not in self.scenes:
@@ -377,9 +361,6 @@ class SceneManager:
                     
                 old_scene_id = self.active_scene_id
                 self.active_scene_id = scene_id
-                
-                if fade_params:
-                    self.scenes[scene_id].fade_params = fade_params
                 
                 self.stats['scene_switches'] += 1
                 self._notify_changes()
@@ -393,40 +374,17 @@ class SceneManager:
             self.stats['errors'] += 1
             return False
     
-    def set_effect_palette(self, scene_id: int, effect_id: int, palette_id: str) -> bool:
-        """Set effect and palette for specific scene"""
-        try:
-            with self._lock:
-                if scene_id not in self.scenes:
-                    logger.warning(f"Scene {scene_id} does not exist")
-                    return False
-                    
-                scene = self.scenes[scene_id]
-                scene.switch_effect(effect_id, palette_id)
-                
-                self.stats['effect_changes'] += 1
-                self.stats['palette_changes'] += 1
-                self._notify_changes()
-                
-                logger.operation("set_effect_palette", f"Scene {scene_id}: effect {effect_id}, palette {palette_id}")
-                return True
-                
-        except Exception as e:
-            logger.error(f"Error setting effect/palette: {e}")
-            self.stats['errors'] += 1
-            return False
-    
     def set_effect(self, effect_id: int) -> bool:
-        """Set effect for active scene"""
+        """Set effect for active scene using zero-origin ID"""
         try:
             with self._lock:
-                if not self.active_scene_id or self.active_scene_id not in self.scenes:
+                if self.active_scene_id is None or self.active_scene_id not in self.scenes:
                     logger.warning("No active scene for effect change")
                     return False
                 
                 scene = self.scenes[self.active_scene_id]
-                if str(effect_id) not in scene.effects:
-                    available_effects = list(scene.effects.keys())
+                if not (0 <= effect_id < len(scene.effects)):
+                    available_effects = list(range(len(scene.effects)))
                     logger.warning(f"Effect {effect_id} not found in scene {self.active_scene_id}. Available: {available_effects}")
                     return False
                 
@@ -447,17 +405,17 @@ class SceneManager:
             self.stats['errors'] += 1
             return False
     
-    def set_palette(self, palette_id: str) -> bool:
-        """Set palette for active scene"""
+    def set_palette(self, palette_id: int) -> bool:
+        """Set palette for active scene using zero-origin ID"""
         try:
             with self._lock:
-                if not self.active_scene_id or self.active_scene_id not in self.scenes:
+                if self.active_scene_id is None or self.active_scene_id not in self.scenes:
                     logger.warning("No active scene for palette change")
                     return False
                 
                 scene = self.scenes[self.active_scene_id]
-                if palette_id not in scene.palettes:
-                    available_palettes = list(scene.palettes.keys())
+                if not (0 <= palette_id < len(scene.palettes)):
+                    available_palettes = list(range(len(scene.palettes)))
                     logger.warning(f"Palette {palette_id} not found in scene {self.active_scene_id}. Available: {available_palettes}")
                     return False
                 
@@ -467,7 +425,7 @@ class SceneManager:
                         self.stats['palette_changes'] += 1
                     return success
                 else:
-                    scene.current_palette = palette_id
+                    scene.current_palette_id = palette_id
                     self.stats['palette_changes'] += 1
                     logger.operation("set_palette", f"Palette {palette_id} for scene {self.active_scene_id}")
                     self._notify_changes()
@@ -478,38 +436,8 @@ class SceneManager:
             self.stats['errors'] += 1
             return False
     
-    def set_move_speed(self, scene_id: int, speed: float) -> bool:
-        """Set movement speed for all segments in scene"""
-        try:
-            with self._lock:
-                if scene_id not in self.scenes:
-                    logger.warning(f"Scene {scene_id} not found for speed change")
-                    return False
-                    
-                scene = self.scenes[scene_id]
-                current_effect = scene.get_current_effect()
-                
-                if current_effect:
-                    segments_updated = 0
-                    for segment in current_effect.segments.values():
-                        old_speed = segment.move_speed
-                        segment.move_speed = speed if segment.move_speed >= 0 else -speed
-                        segments_updated += 1
-                    
-                    logger.operation("set_move_speed", f"Updated {segments_updated} segments in scene {scene_id} to speed {speed}")
-                    self._notify_changes()
-                    return True
-                else:
-                    logger.warning(f"No current effect in scene {scene_id} for speed change")
-                    return False
-                    
-        except Exception as e:
-            logger.error(f"Error setting move speed: {e}")
-            self.stats['errors'] += 1
-            return False
-    
-    def update_palette_color(self, palette_id: str, color_id: int, rgb: List[int]) -> bool:
-        """Update specific color in palette"""
+    def update_palette_color(self, palette_id: int, color_id: int, rgb: List[int]) -> bool:
+        """Update specific color in palette using zero-origin IDs"""
         try:
             with self._lock:
                 if not self.active_scene_id or self.active_scene_id not in self.scenes:
@@ -517,21 +445,16 @@ class SceneManager:
                     return False
                 
                 scene = self.scenes[self.active_scene_id]
-                if palette_id not in scene.palettes:
-                    logger.warning(f"Palette {palette_id} not found in active scene")
-                    return False
+                success = scene.update_palette_color(palette_id, color_id, rgb)
                 
-                if 0 <= color_id < len(scene.palettes[palette_id]):
-                    old_color = scene.palettes[palette_id][color_id].copy()
-                    scene.palettes[palette_id][color_id] = rgb[:3]
-                    
+                if success:
                     logger.operation("update_palette_color", 
-                                   f"Palette {palette_id}[{color_id}]: {old_color}→{rgb[:3]}")
+                                   f"Palette {palette_id}[{color_id}] = RGB({rgb[0]},{rgb[1]},{rgb[2]})")
                     self._notify_changes()
-                    return True
                 else:
-                    logger.warning(f"Color index {color_id} out of range for palette {palette_id}")
-                    return False
+                    logger.warning(f"Failed to update palette {palette_id} color {color_id}")
+                
+                return success
                 
         except Exception as e:
             logger.error(f"Error updating palette color: {e}")
@@ -559,7 +482,7 @@ class SceneManager:
                 self._log_animation_status()
             
             for scene in self.scenes.values():
-                for effect in scene.effects.values():
+                for effect in scene.effects:
                     effect.update_animation(delta_time)
     
     def _log_animation_status(self):
@@ -572,7 +495,7 @@ class SceneManager:
             current_effect = scene.get_current_effect()
             
             if current_effect:
-                led_output = self.get_led_output()
+                led_output = self.get_led_output_with_timing(time.time())
                 active_count = sum(1 for color in led_output if any(c > 0 for c in color))
                 
                 logger.debug(f"Animation frame {self._debug_frame_count}: {active_count}/{len(led_output)} LEDs active")
@@ -597,28 +520,31 @@ class SceneManager:
             logger.info(f"Total scenes: {len(self.scenes)} (IDs: {list(self.scenes.keys())})")
             logger.info(f"Active scene: {self.active_scene_id}")
             
-            if not self.active_scene_id or self.active_scene_id not in self.scenes:
-                logger.warning("No active scene or active scene not found")
+            if self.active_scene_id is None:
+                logger.warning("No active scene set")
+                return
+                
+            if self.active_scene_id not in self.scenes:
+                logger.warning(f"Active scene {self.active_scene_id} not found in loaded scenes")
                 return
                 
             scene = self.scenes[self.active_scene_id]
             current_effect = scene.get_current_effect()
             
             logger.info(f"Scene {scene.scene_id}:")
-            logger.info(f"  Effects: {len(scene.effects)} (IDs: {list(scene.effects.keys())})")
-            logger.info(f"  Palettes: {len(scene.palettes)} (IDs: {list(scene.palettes.keys())})")
-            logger.info(f"  Current: Effect {scene.current_effect_id}, Palette {scene.current_palette}")
+            logger.info(f"  LED Count: {scene.led_count}, FPS: {scene.fps}")
+            logger.info(f"  Effects: {len(scene.effects)} (IDs: 0-{len(scene.effects)-1})")
+            logger.info(f"  Palettes: {len(scene.palettes)} (IDs: 0-{len(scene.palettes)-1})")
+            logger.info(f"  Current: Effect {scene.current_effect_id}, Palette {scene.current_palette_id}")
             
             if current_effect:
                 logger.info(f"Current Effect {current_effect.effect_id}:")
-                logger.info(f"  LED Count: {current_effect.led_count}")
-                logger.info(f"  FPS: {current_effect.fps}")
                 logger.info(f"  Segments: {len(current_effect.segments)} (IDs: {list(current_effect.segments.keys())})")
                 
                 total_expected_leds = 0
                 for seg_id, segment in current_effect.segments.items():
                     total_length = sum(segment.length) if segment.length else 0
-                    has_color = any(c > 0 for c in segment.color) if segment.color else False
+                    has_color = any(c >= 0 for c in segment.color) if segment.color else False
                     expected_leds = total_length if has_color else 0
                     total_expected_leds += expected_leds
                     
@@ -628,13 +554,13 @@ class SceneManager:
                 logger.info(f"  Expected active LEDs: {total_expected_leds}")
                 
                 try:
-                    led_output = scene.get_led_output()
+                    led_output = scene.get_led_output_with_timing(time.time())
                     actual_active = sum(1 for color in led_output if any(c > 0 for c in color))
                     logger.info(f"  Actual LED output: {len(led_output)} total, {actual_active} active")
                 except Exception as e:
                     logger.error(f"  Error getting LED output: {e}")
             else:
-                logger.warning(f"  Current effect {scene.current_effect_id} not found")
+                logger.warning(f"  Current effect {scene.current_effect_id} not found in effects list")
                 
         except Exception as e:
             logger.error(f"Error logging scene status: {e}")
@@ -647,6 +573,8 @@ class SceneManager:
                     "scene_id": None,
                     "effect_id": None,
                     "palette_id": None,
+                    "led_count": 225,
+                    "fps": 60,
                     "total_scenes": len(self.scenes),
                     "total_effects": 0,
                     "total_segments": 0,
@@ -661,11 +589,13 @@ class SceneManager:
             return {
                 "scene_id": scene.scene_id,
                 "effect_id": scene.current_effect_id,
-                "palette_id": scene.current_palette,
+                "palette_id": scene.current_palette_id,
+                "led_count": scene.led_count,
+                "fps": scene.fps,
                 "total_scenes": len(self.scenes),
                 "total_effects": len(scene.effects),
                 "total_segments": len(current_effect.segments) if current_effect else 0,
                 "available_scenes": list(self.scenes.keys()),
-                "available_effects": list(scene.effects.keys()),
-                "available_palettes": list(scene.palettes.keys())
+                "available_effects": list(range(len(scene.effects))),
+                "available_palettes": list(range(len(scene.palettes)))
             }

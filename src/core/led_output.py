@@ -25,8 +25,8 @@ class LEDDestination:
     
     def __init__(self, config: Dict[str, Any], index: int):
         self.index = index
-        self.ip = config["ip"]
-        self.port = config["port"]
+        self.ip = config.get("ip", "127.0.0.1")
+        self.port = config.get("port", 7000)
         self.enabled = config.get("enabled", True)
         self.name = config.get("name", f"Device_{index}")
         
@@ -139,7 +139,7 @@ class LEDOutput:
             logger.info("Starting LED Output system...")
             
             self.destinations.clear()
-            destinations_config = EngineSettings.ANIMATION.led_destinations
+            destinations_config = EngineSettings.get_led_destinations()
             
             if not destinations_config:
                 logger.warning("No LED serial outputs configured")
@@ -150,7 +150,18 @@ class LEDOutput:
             active_count = 0
             for i, destination_config in enumerate(destinations_config):
                 try:
-                    destination = LEDDestination(destination_config, i)
+                    # Convert LEDDestination to dict for LEDDestination class
+                    if hasattr(destination_config, 'ip'):
+                        config_dict = {
+                            "ip": destination_config.ip,
+                            "port": destination_config.port,
+                            "enabled": destination_config.enabled,
+                            "name": destination_config.name or f"Device_{i}"
+                        }
+                    else:
+                        config_dict = destination_config
+                    
+                    destination = LEDDestination(config_dict, i)
                     self.destinations.append(destination)
                     
                     if destination.enabled and destination.client:
@@ -297,77 +308,6 @@ class LEDOutput:
             self.fps_start_time = current_time
             self.fps_frame_count = 0
     
-    def send_to_specific_device(self, device_index: int, led_colors: List[List[int]]):
-        """
-        Send LED data to a specific device only
-        """
-        if not (0 <= device_index < len(self.destinations)):
-            logger.warning(f"Invalid device index: {device_index}")
-            return
-        
-        try:
-            destination = self.destinations[device_index]
-            binary_data = self._convert_to_binary(led_colors)
-            
-            if destination.send_data(EngineSettings.OSC.output_address, binary_data):
-                logger.operation("send_specific", f"Data sent to device {device_index} ({destination.name})")
-            else:
-                logger.warning(f"Failed to send data to device {device_index}")
-                
-        except Exception as e:
-            logger.error(f"Error sending to specific device {device_index}: {e}")
-    
-    def enable_destination(self, device_index: int, enabled: bool = True):
-        """
-        Enable or disable a specific destination
-        """
-        if not (0 <= device_index < len(self.destinations)):
-            logger.warning(f"Invalid device index: {device_index}")
-            return
-        
-        try:
-            destination = self.destinations[device_index]
-            old_status = destination.enabled
-            destination.enabled = enabled
-            
-            if enabled and not destination.client:
-                destination._initialize_client()
-            elif not enabled:
-                destination.client = None
-                destination.connection_status = "disabled"
-            
-            logger.operation("destination_control", 
-                           f"Device {device_index} ({destination.name}): {old_status}→{enabled}")
-            
-        except Exception as e:
-            logger.error(f"Error controlling destination {device_index}: {e}")
-    
-    def test_destination(self, device_index: int) -> bool:
-        """
-        Test connectivity to a specific destination
-        """
-        if not (0 <= device_index < len(self.destinations)):
-            logger.warning(f"Invalid device index: {device_index}")
-            return False
-        
-        try:
-            destination = self.destinations[device_index]
-            
-            test_data = self._convert_to_binary([[255, 0, 0]] * 10)
-            
-            success = destination.send_data(EngineSettings.OSC.output_address, test_data)
-            
-            if success:
-                logger.operation("test_destination", f"Device {device_index} test successful")
-            else:
-                logger.warning(f"Device {device_index} test failed")
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"Error testing destination {device_index}: {e}")
-            return False
-    
     def get_stats(self) -> Dict[str, Any]:
         """
         Get comprehensive output statistics
@@ -394,77 +334,3 @@ class LEDOutput:
                 **self.stats,
                 "destinations": [dest.get_stats() for dest in self.destinations]
             }
-    
-    def get_destination_stats(self, device_index: int) -> Optional[Dict[str, Any]]:
-        """
-        Get statistics for a specific destination
-        """
-        if not (0 <= device_index < len(self.destinations)):
-            return None
-        
-        return self.destinations[device_index].get_stats()
-    
-    def reset_stats(self):
-        """
-        Reset all statistics
-        """
-        with self._lock:
-            self.send_count = 0
-            self.error_count = 0
-            self.fps_frame_count = 0
-            self.fps_start_time = time.time()
-            self.fps_history.clear()
-            
-            self.data_conversion_timer.total_time = 0.0
-            self.data_conversion_timer.call_count = 0
-            self.broadcast_timer.total_time = 0.0
-            self.broadcast_timer.call_count = 0
-            
-            self.stats = {
-                'total_sends': 0,
-                'successful_sends': 0,
-                'failed_sends': 0,
-                'bytes_sent': 0,
-                'destinations_active': sum(1 for d in self.destinations if d.enabled and d.client),
-                'last_data_size': 0
-            }
-            
-            for destination in self.destinations:
-                destination.reset_stats()
-        
-        logger.operation("reset_stats", "LED output statistics reset")
-    
-    def get_performance_report(self) -> Dict[str, Any]:
-        """
-        Generate detailed performance report
-        """
-        stats = self.get_stats()
-        
-        efficiency = 0.0
-        if stats['total_devices'] > 0:
-            efficiency = (stats['successful_sends'] / max(1, stats['total_sends'])) * 100
-        
-        data_rate_mbps = 0.0
-        if self.last_send_time > 0:
-            uptime = time.time() - (self.last_send_time - stats['send_count'] / max(1, stats['actual_send_fps']))
-            if uptime > 0:
-                data_rate_mbps = (stats['bytes_sent'] * 8) / (uptime * 1024 * 1024)
-        
-        return {
-            "efficiency_percent": efficiency,
-            "data_rate_mbps": data_rate_mbps,
-            "average_data_size_kb": stats['last_data_size'] / 1024,
-            "performance_timers": {
-                "data_conversion_ms": self.data_conversion_timer.get_average_time() * 1000,
-                "broadcast_ms": self.broadcast_timer.get_average_time() * 1000
-            },
-            "destination_health": [
-                {
-                    "index": i,
-                    "name": dest.name,
-                    "health_score": (dest.send_count / max(1, dest.send_count + dest.error_count)) * 100,
-                    "status": dest.connection_status
-                }
-                for i, dest in enumerate(self.destinations)
-            ]
-        }
