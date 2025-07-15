@@ -1,6 +1,6 @@
 """
-LED Animation Playback Engine - Terminal Mode
-High-performance LED animation system with OSC control
+LED Animation Playback Engine - Terminal Mode (Fixed Version)
+High-performance LED animation system with OSC control and improved error handling
 """
 
 import asyncio
@@ -24,7 +24,7 @@ app_instance = None
 
 class LEDEngineApp:
     """
-    Main LED Animation Engine Application
+    Main LED Animation Engine Application with improved initialization and error handling
     Handles initialization, execution, and cleanup of the LED animation system
     """
     
@@ -49,13 +49,16 @@ class LEDEngineApp:
     
     async def initialize(self):
         """
-        Initialize the animation engine and all subsystems
+        Initialize the animation engine and all subsystems with improved error handling
         """
         global logger
         try:
             logger.info("Starting LED Animation Engine...")
             
             start_time = time.time()
+            
+            if not EngineSettings.validate_configuration():
+                raise Exception("Configuration validation failed")
             
             self.engine = AnimationEngine()
             await self.engine.start()
@@ -80,13 +83,13 @@ class LEDEngineApp:
     
     async def run(self):
         """
-        Main execution loop for terminal mode
+        Main execution loop for terminal mode with improved status reporting
         Monitors engine status and logs periodic statistics
         """
         logger.info("Starting main execution loop...")
         
-        status_log_interval = 300  # 5 phút
-        performance_log_interval = 600  # 10 phút
+        status_log_interval = 300
+        performance_log_interval = 600
         last_status_log = 0
         last_performance_log = 0
         
@@ -102,7 +105,7 @@ class LEDEngineApp:
                     await self._log_performance()
                     last_performance_log = current_time
                 
-                await asyncio.sleep(5)  # Check mỗi 5 giây thay vì 1 giây
+                await asyncio.sleep(5)
                     
         except KeyboardInterrupt:
             logger.info("Received stop signal (Ctrl+C)")
@@ -115,7 +118,7 @@ class LEDEngineApp:
     
     async def _log_status(self):
         """
-        Log current engine status
+        Log current engine status with improved formatting
         """
         try:
             stats = self.engine.get_stats()
@@ -142,7 +145,7 @@ class LEDEngineApp:
     
     async def _log_performance(self):
         """
-        Log detailed performance metrics
+        Log detailed performance metrics with enhanced analysis
         """
         try:
             stats = self.engine.get_stats()
@@ -169,7 +172,7 @@ class LEDEngineApp:
     
     async def cleanup(self):
         """
-        Clean up all resources and stop the engine
+        Clean up all resources and stop the engine with improved error handling
         """
         logger.info("=" * 40)
         logger.info("SHUTTING DOWN ENGINE")
@@ -224,6 +227,32 @@ def print_banner():
     print("LED Animation Engine")
     print(f"Target: {EngineSettings.ANIMATION.target_fps} FPS | LEDs: {EngineSettings.ANIMATION.led_count}")
     print()
+
+
+def validate_environment():
+    """
+    Validate environment and configuration before starting
+    """
+    try:
+        if not EngineSettings.validate_configuration():
+            print("Configuration validation failed", file=sys.stderr)
+            return False
+        
+        data_dir = Path(EngineSettings.DATA_DIRECTORY)
+        if not data_dir.exists():
+            print(f"Warning: Data directory does not exist: {data_dir}")
+        
+        default_scene = Path(EngineSettings.DEFAULT_SCENE_FILE)
+        if default_scene.exists():
+            print(f"Default scene file found: {default_scene}")
+        else:
+            print(f"No default scene file at: {default_scene}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Environment validation error: {e}", file=sys.stderr)
+        return False
 
 
 def main():

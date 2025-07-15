@@ -1,6 +1,6 @@
 """
-LED Animation Playback Engine - Zero-origin IDs and Expanded Speed Range
-Supports time-based rendering and speed range 0-1023%
+LED Animation Playback Engine - Fixed version with proper LED count handling
+Supports time-based rendering, auto-loading, and improved brightness handling
 """
 
 import asyncio
@@ -9,6 +9,7 @@ import threading
 from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass
 from collections import deque
+from pathlib import Path
 
 from .scene_manager import SceneManager
 from .led_output import LEDOutput
@@ -40,8 +41,8 @@ class EngineStats:
 
 class AnimationEngine:
     """
-    Main LED Animation Playback Engine with zero-origin IDs and expanded speed range
-    Handles real-time animation processing with time-based rendering and fractional positioning
+    Main LED Animation Playback Engine with improved brightness handling and auto-loading
+    Handles real-time animation processing with time-based rendering and dynamic LED counts
     """
     
     def __init__(self):
@@ -84,8 +85,16 @@ class AnimationEngine:
         self._setup_osc_handlers()
         
         logger.info(f"AnimationEngine initialized with zero-origin ID system")
-        logger.info(f"Target: {self.target_fps} FPS, {self.stats.total_leds} LEDs")
+        logger.info(f"Target: {self.target_fps} FPS, {EngineSettings.ANIMATION.led_count} LEDs")
         logger.info(f"Speed range: 0-1023%, Frame interval: {self.frame_interval*1000:.2f}ms")
+    
+    def get_current_led_count(self) -> int:
+        """Get current LED count from active scene or default"""
+        try:
+            scene_info = self.scene_manager.get_current_scene_info()
+            return scene_info.get('led_count', EngineSettings.ANIMATION.led_count)
+        except Exception:
+            return EngineSettings.ANIMATION.led_count
     
     def _setup_osc_handlers(self):
         """
@@ -111,7 +120,7 @@ class AnimationEngine:
     
     async def start(self):
         """
-        Start the animation engine and all subsystems
+        Start the animation engine and all subsystems with auto-loading
         """
         try:
             logger.info("Starting Animation Engine subsystems...")
@@ -129,6 +138,7 @@ class AnimationEngine:
             await self.led_output.start()
             
             logger.info("Starting OSC Handler...")
+                        
             await self.osc_handler.start()
             
             logger.info("Starting Animation Loop...")
@@ -139,6 +149,12 @@ class AnimationEngine:
             
             self.running = True
             
+            await asyncio.sleep(0.2)
+            if self.frame_count == 0:
+                logger.warning("Animation loop may not be working - no frames processed")
+            else:
+                logger.info(f"Animation loop verified - {self.frame_count} frames processed")
+            
             await asyncio.sleep(0.1)
             
             logger.info("Animation Engine started successfully")
@@ -148,6 +164,24 @@ class AnimationEngine:
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
+    
+    async def _auto_load_default_scenes(self):
+        """Auto-load default scenes if available"""
+        try:
+            default_scene_file = Path(EngineSettings.DEFAULT_SCENE_FILE)
+            if default_scene_file.exists():
+                logger.info(f"Auto-loading default scenes from {default_scene_file}")
+                success = self.scene_manager.load_multiple_scenes_from_file(str(default_scene_file))
+                if success:
+                    logger.info("Default scenes loaded successfully")
+                    self.stats.total_leds = self.get_current_led_count()
+                    self._notify_state_change()
+                else:
+                    logger.warning("Failed to load default scenes")
+            else:
+                logger.info("No default scene file found, engine ready for manual loading")
+        except Exception as e:
+            logger.error(f"Error auto-loading default scenes: {e}")
 
     async def stop(self):
         """
@@ -182,6 +216,7 @@ class AnimationEngine:
         Start the high-priority animation loop in a separate thread
         """
         if self.animation_thread and self.animation_thread.is_alive():
+            logger.warning("Animation thread already running")
             return
             
         self.animation_thread = threading.Thread(
@@ -191,6 +226,13 @@ class AnimationEngine:
         )
         self.animation_thread.start()
         logger.info("Animation loop thread started")
+        
+        # Verify thread is actually running
+        time.sleep(0.1)
+        if not self.animation_thread.is_alive():
+            logger.error("Animation thread failed to start!")
+        else:
+            logger.info("Animation thread verified running")
     
     def _start_monitoring(self):
         """
@@ -211,57 +253,74 @@ class AnimationEngine:
         """
         Main high-performance animation loop with time-based rendering
         """
-        logger.info(f"Animation loop started - Target: {self.target_fps} FPS")
-        
-        self.last_frame_time = time.time()
-        self.fps_calculation_time = self.last_frame_time
-        self.fps_frame_count = 0
-        
-        fps_log_interval = 600
-        performance_log_interval = 3600
-        
-        while self.running:
-            frame_start = time.perf_counter()
+        try:
+            logger.info(f"Animation loop started - Target: {self.target_fps} FPS")
             
-            try:
-                with self.profiler.get_timer("frame_processing"):
+            self.last_frame_time = time.time()
+            self.fps_calculation_time = self.last_frame_time
+            self.fps_frame_count = 0
+            
+            fps_log_interval = 600
+            performance_log_interval = 3600
+            
+            while self.running:
+                frame_start = time.perf_counter()
+                
+                try:
+                    frame_timeout = 0.1  
+                    
                     delta_time = frame_start - self.last_frame_time
                     self.last_frame_time = frame_start
                     
+                    frame_process_start = time.perf_counter()
                     self._update_frame(delta_time, frame_start)
+                    
+                    frame_process_time = time.perf_counter() - frame_process_start
+                    if frame_process_time > frame_timeout:
+                        logger.warning(f"Frame processing took {frame_process_time*1000:.1f}ms (timeout: {frame_timeout*1000:.1f}ms)")
+                    
+                    with self._lock:
+                        self.frame_count += 1
+                        self.stats.frame_count = self.frame_count
+                        self.stats.animation_time = frame_start - self.engine_start_time
+                        self.stats.total_leds = self.get_current_led_count()
+                    
+                    self.performance_monitor.record_frame(frame_start)
+                    self.fps_frame_count += 1
+                    
+                    if delta_time > 0:
+                        instant_fps = 1.0 / delta_time
+                        self.fps_history.append(instant_fps)
+                    
+                    if self.fps_frame_count >= fps_log_interval:
+                        self._log_fps_status()
+                        self.fps_frame_count = 0
+                    
+                    if self.frame_count % performance_log_interval == 0 and self.frame_count > 0:
+                        self._log_detailed_performance()
+                    
+                except Exception as e:
+                    logger.error(f"Error in animation loop frame: {e}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    # Don't exit loop on error, just continue
                 
-                with self._lock:
-                    self.frame_count += 1
-                    self.stats.frame_count = self.frame_count
-                    self.stats.animation_time = frame_start - self.engine_start_time
+                frame_time = time.perf_counter() - frame_start
+                sleep_time = max(0, self.frame_interval - frame_time)
                 
-                self.performance_monitor.record_frame(frame_start)
-                self.fps_frame_count += 1
+                if frame_time > self.frame_interval * 2.0:
+                    logger.warning(f"Frame processing exceeded target by {(frame_time - self.frame_interval)*1000:.1f}ms")
                 
-                if delta_time > 0:
-                    instant_fps = 1.0 / delta_time
-                    self.fps_history.append(instant_fps)
-                
-                if self.fps_frame_count >= fps_log_interval:
-                    self._log_fps_status()
-                    self.fps_frame_count = 0
-                
-                if self.frame_count % performance_log_interval == 0 and self.frame_count > 0:
-                    self._log_detailed_performance()
-                
-            except Exception as e:
-                logger.error(f"Error in animation loop: {e}")
-                import traceback
-                logger.error(f"Traceback: {traceback.format_exc()}")
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
             
-            frame_time = time.perf_counter() - frame_start
-            sleep_time = max(0, self.frame_interval - frame_time)
-            
-            if frame_time > self.frame_interval * 2.0:
-                logger.warning(f"Frame processing exceeded target by {(frame_time - self.frame_interval)*1000:.1f}ms")
-            
-            if sleep_time > 0:
-                time.sleep(sleep_time)
+            logger.info("Animation loop stopped")
+        
+        except Exception as e:
+            logger.error(f"FATAL ERROR in animation loop: {e}")
+            import traceback
+            logger.error(f"Animation loop traceback: {traceback.format_exc()}")
+            logger.info("Animation loop stopped due to error")
     
     def _monitoring_loop(self):
         """
@@ -340,7 +399,7 @@ class AnimationEngine:
             led_colors = self.scene_manager.get_led_output_with_timing(time.time())
             active_leds = sum(1 for color in led_colors if any(c > 0 for c in color[:3]))
             stats_copy.active_leds = active_leds
-            stats_copy.total_leds = self.stats.total_leds
+            stats_copy.total_leds = self.get_current_led_count()
             
             stats_copy.animation_time = time.time() - self.engine_start_time
             stats_copy.master_brightness = self.master_brightness
@@ -348,40 +407,56 @@ class AnimationEngine:
             stats_copy.dissolve_time = self.dissolve_time
             
             self.stats.active_leds = active_leds
+            self.stats.total_leds = stats_copy.total_leds
             
             return stats_copy
     
     def _update_frame(self, delta_time: float, current_time: float):
         """
-        Update one animation frame with time-based rendering and expanded speed range
+        Update one animation frame with time-based rendering and dynamic LED count
         """
         try:
             with self._lock:
                 speed_percent = self.speed_percent
                 master_brightness = self.master_brightness
             
-            # Apply speed multiplier with expanded range 0-1023%
             adjusted_delta = delta_time * (speed_percent / 100.0)
             
-            with self.profiler.get_timer("scene_update"):
-                self.scene_manager.update_animation(adjusted_delta)
+            # Simple timing without profiler
+            scene_start = time.perf_counter()
+            self.scene_manager.update_animation(adjusted_delta)
+            scene_time = time.perf_counter() - scene_start
             
-            with self.profiler.get_timer("led_calculation"):
-                led_colors = self.scene_manager.get_led_output_with_timing(current_time)
+            led_start = time.perf_counter()
+            led_colors = self.scene_manager.get_led_output_with_timing(current_time)
+            led_time = time.perf_counter() - led_start
+            
+            # Debug: log first few frames
+            if self.frame_count < 5:
+                active_leds = sum(1 for color in led_colors if any(c > 0 for c in color[:3]))
+                logger.debug(f"Frame {self.frame_count}: {active_leds}/{len(led_colors)} LEDs active, scene: {scene_time*1000:.1f}ms, led: {led_time*1000:.1f}ms")
             
             if master_brightness < 255:
-                with self.profiler.get_timer("brightness_adjustment"):
-                    brightness_factor = master_brightness / 255.0
-                    led_colors = [
-                        [int(c * brightness_factor) for c in color]
-                        for color in led_colors
-                    ]
+                brightness_start = time.perf_counter()
+                brightness_factor = master_brightness / 255.0
+                led_colors = [
+                    [int(c * brightness_factor) for c in color]
+                    for color in led_colors
+                ]
+                brightness_time = time.perf_counter() - brightness_start
             
-            with self.profiler.get_timer("led_output"):
-                self.led_output.send_led_data(led_colors)
+            output_start = time.perf_counter()
+            self.led_output.send_led_data(led_colors)
+            output_time = time.perf_counter() - output_start
+            
+            # Log timing for first few frames
+            if self.frame_count < 5:
+                logger.debug(f"Frame {self.frame_count} timing: scene={scene_time*1000:.1f}ms, led={led_time*1000:.1f}ms, output={output_time*1000:.1f}ms")
                 
         except Exception as e:
             logger.error(f"Error in _update_frame: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
     
     def add_state_callback(self, callback: Callable):
         """

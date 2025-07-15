@@ -1,0 +1,199 @@
+{
+  "app_content": {
+    "vi": {
+      "title": "OSC LED Engine API",
+      "description": "API server cho điều khiển LED Engine qua OSC messages",
+      "welcome_message": "OSC LED Engine API Server",
+      "tags": {
+        "scene_management": "Quản lý Scene",
+        "palette_control": "Điều khiển Palette",
+        "led_control": "Điều khiển LED"
+      },
+      "endpoints": {
+        "load_json": {
+          "summary": "Tải Scene JSON",
+          "description": "Tải cấu hình scene từ file JSON"
+        },
+        "change_scene": {
+          "summary": "Chuyển Scene",
+          "description": "Chuyển đổi scene khác theo Scene ID"
+        },
+        "change_palette": {
+          "summary": "Chuyển Palette",
+          "description": "Chuyển đổi palette khác theo Palette ID"
+        },
+        "palette_color": {
+          "summary": "Cập nhật Màu Palette",
+          "description": "Cập nhật màu cụ thể trong palette với giá trị RGB"
+        },
+        "change_effect": {
+          "summary": "Chuyển Effect",
+          "description": "Chuyển đổi effect khác theo Effect ID"
+        },
+        "set_dissolve_time": {
+          "summary": "Thiết lập Thời gian Fade",
+          "description": "Thiết lập thời gian chuyển cảnh theo giây"
+        },
+        "set_speed_percent": {
+          "summary": "Thiết lập Tỷ lệ Tốc độ",
+          "description": "Thiết lập tỷ lệ tốc độ animation (0-200%)"
+        },
+        "master_brightness": {
+          "summary": "Thiết lập Độ sáng Tổng",
+          "description": "Thiết lập mức độ sáng tổng thể (0-255)"
+        }
+      }
+    },
+    "en": {
+      "title": "OSC LED Engine API",
+      "description": "API server for LED Engine OSC control",
+      "welcome_message": "OSC LED Engine API Server",
+      "tags": {
+        "scene_management": "Scene Management",
+        "palette_control": "Palette Control", 
+        "led_control": "LED Control"
+      },
+      "endpoints": {
+        "load_json": {
+          "summary": "Load JSON Scene",
+          "description": "Load scene configuration from JSON file"
+        },
+        "change_scene": {
+          "summary": "Change Scene",
+          "description": "Switch to different scene by Scene ID"
+        },
+        "change_palette": {
+          "summary": "Change Palette",
+          "description": "Switch to different palette by Palette ID"
+        },
+        "palette_color": {
+          "summary": "Update Palette Color",
+          "description": "Update specific color in palette with RGB values"
+        },
+        "change_effect": {
+          "summary": "Change Effect",
+          "description": "Switch to different effect by Effect ID"
+        },
+        "set_dissolve_time": {
+          "summary": "Set Dissolve Time",
+          "description": "Set fade transition time in seconds"
+        },
+        "set_speed_percent": {
+          "summary": "Set Speed Percent",
+          "description": "Set animation speed percentage (0-200%)"
+        },
+        "master_brightness": {
+          "summary": "Set Master Brightness",
+          "description": "Set overall brightness level (0-255)"
+        }
+      }
+    },
+    "ja": {
+      "title": "OSC LED Engine API", 
+      "description": "LED Engine OSC制御用APIサーバー",
+      "welcome_message": "OSC LED Engine APIサーバー",
+      "tags": {
+        "scene_management": "シーン管理",
+        "palette_control": "パレット制御",
+        "led_control": "LED制御"
+      },
+      "endpoints": {
+        "load_json": {
+          "summary": "JSONシーン読み込み",
+          "description": "JSONファイルからシーン設定を読み込む"
+        },
+        "change_scene": {
+          "summary": "シーン変更",
+          "description": "シーンIDで異なるシーンに切り替える"
+        },
+        "change_palette": {
+          "summary": "パレット変更",
+          "description": "パレットIDで異なるパレットに切り替える"
+        },
+        "palette_color": {
+          "summary": "パレット色更新",
+          "description": "RGB値でパレットの特定色を更新"
+        },
+        "change_effect": {
+          "summary": "エフェクト変更",
+          "description": "エフェクトIDで異なるエフェクトに切り替える"
+        },
+        "set_dissolve_time": {
+          "summary": "フェード時間設定",
+          "description": "フェード遷移時間を秒で設定"
+        },
+        "set_speed_percent": {
+          "summary": "速度パーセント設定",
+          "description": "アニメーション速度パーセントを設定 (0-200%)"
+        },
+        "master_brightness": {
+          "summary": "マスター輝度設定",
+          "description": "全体輝度レベルを設定 (0-255)"
+        }
+      }
+    }
+  },
+  "status_messages": {
+    "vi": {
+      "healthy": "khỏe mạnh",
+      "degraded": "giảm sút"
+    },
+    "en": {
+      "healthy": "healthy",
+      "degraded": "degraded"
+    },
+    "ja": {
+      "healthy": "正常",
+      "degraded": "劣化"
+    }
+  },
+  "test_messages": {
+    "vi": {
+      "connection_success": "Kết nối OSC thành công",
+      "connection_failed": "Kết nối OSC thất bại",
+      "test_start": "Bắt đầu test",
+      "test_complete": "Hoàn thành test",
+      "validation_error": "Lỗi validation",
+      "performance_test": "Test hiệu suất",
+      "endpoint_test": "Test endpoint"
+    },
+    "en": {
+      "connection_success": "OSC connection successful",
+      "connection_failed": "OSC connection failed",
+      "test_start": "Test started",
+      "test_complete": "Test completed",
+      "validation_error": "Validation error",
+      "performance_test": "Performance test",
+      "endpoint_test": "Endpoint test"
+    },
+    "ja": {
+      "connection_success": "OSC接続成功",
+      "connection_failed": "OSC接続失敗",
+      "test_start": "テスト開始",
+      "test_complete": "テスト完了",
+      "validation_error": "検証エラー",
+      "performance_test": "パフォーマンステスト",
+      "endpoint_test": "エンドポイントテスト"
+    }
+  },
+  "error_messages": {
+    "vi": {
+      "invalid_parameter": "Tham số không hợp lệ",
+      "timeout": "Hết thời gian chờ",
+      "server_error": "Lỗi server",
+      "not_found": "Không tìm thấy"
+    },
+    "en": {
+      "invalid_parameter": "Invalid parameter",
+      "timeout": "Timeout",
+      "server_error": "Server error",
+      "not_found": "Not found"
+    },
+    "ja": {
+      "invalid_parameter": "無効なパラメータ",
+      "timeout": "タイムアウト",
+      "server_error": "サーバーエラー",
+      "not_found": "見つかりません"
+    }
+  }
+}

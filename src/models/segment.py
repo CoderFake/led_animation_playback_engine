@@ -1,6 +1,6 @@
 """
-Segment model - Complete rewrite following exact spec
-Zero-origin IDs with time-based dimmer and fractional positioning
+Segment model - Fixed version with improved time-based dimmer and fractional positioning
+Zero-origin IDs with stable brightness calculations and boundary checking
 """
 
 from typing import List, Any, Dict
@@ -12,7 +12,7 @@ import math
 @dataclass
 class Segment:
     """
-    LED Segment model with time-based brightness and fractional positioning.
+    LED Segment model with improved time-based brightness and fractional positioning.
     Uses zero-origin ID system and supports speed range 0-1023%.
     """
     
@@ -52,20 +52,40 @@ class Segment:
         
         if not self.dimmer_time or not isinstance(self.dimmer_time[0], list):
             self.dimmer_time = [[1000, 0, 100]]
+        
+        self._validate_dimmer_time()
+    
+    def _validate_dimmer_time(self):
+        """Validate and fix dimmer_time data"""
+        if not self.dimmer_time:
+            self.dimmer_time = [[1000, 0, 100]]
+            return
+        
+        validated_dimmer = []
+        for transition in self.dimmer_time:
+            if isinstance(transition, list) and len(transition) == 3:
+                duration = max(100, int(transition[0]))
+                start_brightness = max(0, min(100, int(transition[1])))
+                end_brightness = max(0, min(100, int(transition[2])))
+                validated_dimmer.append([duration, start_brightness, end_brightness])
+            else:
+                validated_dimmer.append([1000, 0, 100])
+        
+        self.dimmer_time = validated_dimmer if validated_dimmer else [[1000, 0, 100]]
     
     def reset_animation_timing(self):
         """Reset timing when segment direction changes or position resets"""
         self.segment_start_time = time.time()
     
     def get_brightness_at_time(self, current_time: float) -> float:
-        """Get brightness based on elapsed time since segment start"""
+        """Get brightness based on elapsed time since segment start - improved version"""
         try:
             if not self.dimmer_time:
                 return 1.0
             
             elapsed_ms = (current_time - self.segment_start_time) * 1000
             
-            total_cycle_ms = sum(transition[0] for transition in self.dimmer_time)
+            total_cycle_ms = sum(max(1, transition[0]) for transition in self.dimmer_time)
             if total_cycle_ms <= 0:
                 return 1.0
             
@@ -73,58 +93,76 @@ class Segment:
             
             current_time_ms = 0
             for duration_ms, start_brightness, end_brightness in self.dimmer_time:
+                duration_ms = max(1, duration_ms)
+                
                 if elapsed_ms <= current_time_ms + duration_ms:
                     if duration_ms > 0:
                         progress = (elapsed_ms - current_time_ms) / duration_ms
+                        progress = max(0.0, min(1.0, progress))
                     else:
                         progress = 0.0
                     
                     brightness = start_brightness + (end_brightness - start_brightness) * progress
                     result = max(0.0, min(1.0, brightness / 100.0))
+                    return max(0.01, result)
                     
-                    return result
                 current_time_ms += duration_ms
             
             if self.dimmer_time:
                 last_brightness = self.dimmer_time[-1][2] 
-                return max(0.0, min(1.0, last_brightness / 100.0))
+                return max(0.01, max(0.0, min(1.0, last_brightness / 100.0)))
             
             return 1.0
             
-        except Exception:
-            return 1.0 
+        except Exception as e:
+            return 1.0
     
     def update_position(self, delta_time: float):
-        """Update position with expanded speed range 0-1023% and handle boundary conditions"""
+        """Update position with expanded speed range 0-1023% and improved boundary handling"""
         if abs(self.move_speed) < 0.001:
             return
-            
+        
+        old_position = self.current_position
         self.current_position += self.move_speed * delta_time
         
-        if self.is_edge_reflect and len(self.move_range) >= 2:
+        if len(self.move_range) >= 2:
             min_pos, max_pos = self.move_range[0], self.move_range[1]
             
-            if self.current_position <= min_pos:
-                self.current_position = min_pos
-                self.move_speed = abs(self.move_speed)
-                self.reset_animation_timing() 
-            elif self.current_position >= max_pos:
-                self.current_position = max_pos
-                self.move_speed = -abs(self.move_speed)
-                self.reset_animation_timing() 
-        elif not self.is_edge_reflect and len(self.move_range) >= 2:
-            min_pos, max_pos = self.move_range[0], self.move_range[1]
-            range_size = max_pos - min_pos
-            if range_size > 0:
-                relative_pos = (self.current_position - min_pos) % range_size
-                self.current_position = min_pos + relative_pos
+            if self.is_edge_reflect:
+                direction_changed = False
+                
+                if self.current_position <= min_pos:
+                    self.current_position = min_pos
+                    if self.move_speed < 0:
+                        self.move_speed = abs(self.move_speed)
+                        direction_changed = True
+                elif self.current_position >= max_pos:
+                    self.current_position = max_pos
+                    if self.move_speed > 0:
+                        self.move_speed = -abs(self.move_speed)
+                        direction_changed = True
+                
+                if direction_changed:
+                    self.reset_animation_timing()
+            else:
+                range_size = max_pos - min_pos
+                if range_size > 0:
+                    if self.current_position < min_pos:
+                        self.current_position = max_pos - (min_pos - self.current_position)
+                    elif self.current_position > max_pos:
+                        self.current_position = min_pos + (self.current_position - max_pos)
+        
+        self.current_position = max(0.0, self.current_position)
     
     def get_led_colors_with_timing(self, palette: List[List[int]], current_time: float) -> List[List[int]]:
-        """Get LED colors with time-based brightness and palette as array (zero-origin)"""
+        """Get LED colors with improved time-based brightness and palette handling"""
         if not self.color or not palette:
             return []
         
         brightness_factor = self.get_brightness_at_time(current_time)
+        
+        if brightness_factor <= 0.0:
+            return []
         
         colors = []
         
@@ -149,7 +187,7 @@ class Segment:
                         for c in base_color
                     ]
                     colors.append(final_color)
-                
+            
             if len(self.color) > len(self.length):
                 for extra_index in range(len(self.length), len(self.color)):
                     color_index = self.color[extra_index]
@@ -165,7 +203,6 @@ class Segment:
                     ]
                     colors.append(final_color)
             
-        
             return colors
             
         except Exception as e:
@@ -173,15 +210,15 @@ class Segment:
     
     def render_to_led_array(self, palette: List[List[int]], current_time: float, 
                            led_array: List[List[int]]) -> None:
-        """Render segment to LED array with fractional positioning and fade effects"""
+        """Render segment to LED array with improved fractional positioning and fade effects"""
         segment_colors = self.get_led_colors_with_timing(palette, current_time)
         
         if not segment_colors:
             return
         
         try:
-            base_position = int(self.current_position)
-            fractional_part = self.current_position - base_position
+            base_position = max(0, int(self.current_position))
+            fractional_part = max(0.0, min(1.0, self.current_position - base_position))
             
             for i, color in enumerate(segment_colors):
                 led_index = base_position + i
@@ -189,10 +226,10 @@ class Segment:
                 if 0 <= led_index < len(led_array):
                     if len(segment_colors) > 1:
                         if i == 0:
-                            fade_factor = fractional_part
+                            fade_factor = max(0.1, fractional_part)
                             faded_color = [int(c * fade_factor) for c in color]
                         elif i == len(segment_colors) - 1:
-                            fade_factor = 1.0 - fractional_part
+                            fade_factor = max(0.1, 1.0 - fractional_part)
                             faded_color = [int(c * fade_factor) for c in color]
                         else:
                             faded_color = color
@@ -200,7 +237,8 @@ class Segment:
                         faded_color = color
                     
                     for j in range(3):
-                        led_array[led_index][j] = min(255, led_array[led_index][j] + faded_color[j])
+                        if j < len(faded_color):
+                            led_array[led_index][j] = min(255, led_array[led_index][j] + faded_color[j])
                         
         except Exception as e:
             pass
@@ -273,8 +311,8 @@ class Segment:
         default_duration = 1000  
         
         for i in range(len(old_format) - 1):
-            start_brightness = old_format[i]
-            end_brightness = old_format[i + 1]
+            start_brightness = max(0, min(100, old_format[i]))
+            end_brightness = max(0, min(100, old_format[i + 1]))
             new_format.append([default_duration, start_brightness, end_brightness])
         
         return new_format

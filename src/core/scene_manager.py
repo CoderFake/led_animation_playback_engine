@@ -1,6 +1,6 @@
 """
-Scene Manager - Updated for zero-origin IDs and time-based rendering
-Supports expanded speed range 0-1023% and fractional positioning
+Scene Manager - Fixed version with improved transition handling and LED count management
+Supports zero-origin IDs, time-based rendering, and dynamic LED counts
 """
 
 import time
@@ -29,9 +29,9 @@ class TransitionPhase(Enum):
 @dataclass
 class PatternTransitionConfig:
     """Configuration for pattern transitions"""
-    fade_in_ms: int = 100
-    fade_out_ms: int = 100
-    waiting_ms: int = 50
+    fade_in_ms: int = 200
+    fade_out_ms: int = 200
+    waiting_ms: int = 100
 
 
 @dataclass  
@@ -41,14 +41,14 @@ class PatternTransition:
     phase: TransitionPhase = TransitionPhase.COMPLETED
     
     from_effect_id: int = None
-    from_palette_id: int = None  # Changed to int (zero-origin)
+    from_palette_id: int = None
     to_effect_id: int = None
-    to_palette_id: int = None  # Changed to int (zero-origin)
+    to_palette_id: int = None
     
     start_time: float = 0.0
-    fade_in_ms: int = 100
-    fade_out_ms: int = 100
-    waiting_ms: int = 50
+    fade_in_ms: int = 200
+    fade_out_ms: int = 200
+    waiting_ms: int = 100
     
     phase_start_time: float = 0.0
     progress: float = 0.0
@@ -56,8 +56,8 @@ class PatternTransition:
 
 class SceneManager:
     """
-    Manages animation scenes with zero-origin IDs and time-based rendering
-    Supports expanded speed range 0-1023% and fractional positioning
+    Manages animation scenes with improved transition handling and dynamic LED counts
+    Supports zero-origin IDs, time-based rendering, and stable brightness calculations
     """
     
     def __init__(self):
@@ -154,7 +154,7 @@ class SceneManager:
             return True
     
     def _update_pattern_transition(self, current_time: float):
-        """Update active pattern transition state"""
+        """Update active pattern transition state with improved timing"""
         if not self.pattern_transition.is_active:
             return
             
@@ -166,7 +166,12 @@ class SceneManager:
                 self.pattern_transition.phase_start_time = current_time
                 logger.debug("Transition: FADE_OUT → WAITING")
             else:
-                self.pattern_transition.progress = 1.0 - (phase_elapsed / self.pattern_transition.fade_out_ms)
+                if self.pattern_transition.fade_out_ms > 0:
+                    progress = phase_elapsed / self.pattern_transition.fade_out_ms
+                    self.pattern_transition.progress = max(EngineSettings.PATTERN_TRANSITION.minimum_transition_brightness, 
+                                                         1.0 - progress)
+                else:
+                    self.pattern_transition.progress = 0.0
         
         elif self.pattern_transition.phase == TransitionPhase.WAITING:
             if phase_elapsed >= self.pattern_transition.waiting_ms:
@@ -180,7 +185,12 @@ class SceneManager:
             if phase_elapsed >= self.pattern_transition.fade_in_ms:
                 self._complete_pattern_transition()
             else:
-                self.pattern_transition.progress = phase_elapsed / self.pattern_transition.fade_in_ms
+                if self.pattern_transition.fade_in_ms > 0:
+                    progress = phase_elapsed / self.pattern_transition.fade_in_ms
+                    self.pattern_transition.progress = max(EngineSettings.PATTERN_TRANSITION.minimum_transition_brightness, 
+                                                         progress)
+                else:
+                    self.pattern_transition.progress = 1.0
     
     def _complete_pattern_transition(self):
         """Complete the active pattern transition"""
@@ -202,13 +212,13 @@ class SceneManager:
         self._notify_changes()
     
     def get_led_output_with_timing(self, current_time: float) -> List[List[int]]:
-        """Get LED output with time-based brightness and fractional positioning"""
+        """Get LED output with time-based brightness and dynamic LED count"""
         with self._lock:
             if not self.pattern_transition.is_active:
                 if self.active_scene_id and self.active_scene_id in self.scenes:
                     scene = self.scenes[self.active_scene_id]
                     return scene.get_led_output_with_timing(current_time)
-                return [[0, 0, 0] for _ in range(225)]  # Default LED count
+                return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
             
             return self._get_transition_led_output_with_timing(current_time)
     
@@ -217,9 +227,9 @@ class SceneManager:
         return self.get_led_output_with_timing(time.time())
     
     def _get_transition_led_output_with_timing(self, current_time: float) -> List[List[int]]:
-        """Generate LED output during transitions with timing"""
+        """Generate LED output during transitions with improved brightness handling"""
         if not self.active_scene_id or self.active_scene_id not in self.scenes:
-            return [[0, 0, 0] for _ in range(225)]
+            return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
         
         scene = self.scenes[self.active_scene_id]
         led_count = scene.led_count
@@ -514,7 +524,7 @@ class SceneManager:
             logger.error(f"Error logging animation status: {e}")
     
     def _log_scene_status(self):
-        """Log comprehensive scene status"""
+        """Log comprehensive scene status with improved LED count reporting"""
         try:
             logger.info("=== SCENE STATUS ===")
             logger.info(f"Total scenes: {len(self.scenes)} (IDs: {list(self.scenes.keys())})")
@@ -548,8 +558,9 @@ class SceneManager:
                     expected_leds = total_length if has_color else 0
                     total_expected_leds += expected_leds
                     
+                    brightness = segment.get_brightness_at_time(time.time())
                     logger.info(f"  Segment {seg_id}: length={total_length}, pos={segment.current_position:.1f}, "
-                              f"speed={segment.move_speed}, colors={len(segment.color)}")
+                              f"speed={segment.move_speed}, colors={len(segment.color)}, brightness={brightness:.3f}")
                 
                 logger.info(f"  Expected active LEDs: {total_expected_leds}")
                 
@@ -557,6 +568,10 @@ class SceneManager:
                     led_output = scene.get_led_output_with_timing(time.time())
                     actual_active = sum(1 for color in led_output if any(c > 0 for c in color))
                     logger.info(f"  Actual LED output: {len(led_output)} total, {actual_active} active")
+                    
+                    if actual_active == 0 and total_expected_leds > 0:
+                        logger.warning("  WARNING: Expected LEDs but none are active - check brightness/timing")
+                        
                 except Exception as e:
                     logger.error(f"  Error getting LED output: {e}")
             else:
@@ -573,8 +588,8 @@ class SceneManager:
                     "scene_id": None,
                     "effect_id": None,
                     "palette_id": None,
-                    "led_count": 225,
-                    "fps": 60,
+                    "led_count": EngineSettings.ANIMATION.led_count,
+                    "fps": EngineSettings.ANIMATION.target_fps,
                     "total_scenes": len(self.scenes),
                     "total_effects": 0,
                     "total_segments": 0,

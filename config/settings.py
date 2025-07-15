@@ -53,8 +53,8 @@ class AnimationConfig(BaseModel):
     Animation engine configuration with expanded features
     """
     target_fps: int = Field(default=60, description="Target animation FPS", ge=1, le=120)
-    led_count: int = Field(default=225, description="Total number of LEDs", ge=1, le=10000)
-    master_brightness: int = Field(default=0, description="Master brightness level", ge=0, le=255)
+    led_count: int = Field(default=225, description="Default LED count (dynamic per scene)", ge=1, le=10000)
+    master_brightness: int = Field(default=255, description="Master brightness level", ge=0, le=255)
     default_dissolve_time: int = Field(default=1000, description="Default dissolve time in ms", ge=0)
     
     led_destinations: List[LEDDestination] = Field(
@@ -70,6 +70,9 @@ class AnimationConfig(BaseModel):
     speed_range_max: int = Field(default=1023, description="Maximum speed percentage (expanded from 200% to 1023%)")
     fractional_positioning: bool = Field(default=True, description="Enable fractional positioning with fade effects")
     time_based_dimmer: bool = Field(default=True, description="Enable time-based dimmer instead of position-based")
+    
+    minimum_brightness: float = Field(default=0.02, description="Minimum brightness to ensure visibility")
+    brightness_smoothing: bool = Field(default=True, description="Enable brightness smoothing")
     
     @validator('led_destinations')
     def validate_destinations(cls, v):
@@ -92,12 +95,13 @@ class PatternTransitionConfig(BaseModel):
     Pattern transition configuration for smooth effect changes
     """
     enabled: bool = Field(default=True, description="Enable pattern transitions")
-    default_fade_in_ms: int = Field(default=100, description="Default fade-in time", ge=0, le=5000)
-    default_fade_out_ms: int = Field(default=100, description="Default fade-out time", ge=0, le=5000)
-    default_waiting_ms: int = Field(default=50, description="Default waiting time", ge=0, le=1000)
+    default_fade_in_ms: int = Field(default=200, description="Default fade-in time", ge=0, le=5000)
+    default_fade_out_ms: int = Field(default=200, description="Default fade-out time", ge=0, le=5000)
+    default_waiting_ms: int = Field(default=100, description="Default waiting time", ge=0, le=1000)
     
     smooth_transitions: bool = Field(default=True, description="Use smooth interpolation")
     transition_curve: str = Field(default="linear", description="Transition curve: linear, ease_in, ease_out, ease_in_out")
+    minimum_transition_brightness: float = Field(default=0.1, description="Minimum brightness during transitions")
 
 
 class DissolveConfig(BaseModel):
@@ -174,9 +178,6 @@ class BackgroundConfig(BaseModel):
     save_state_on_exit: bool = Field(default=True, description="Save engine state on exit")
 
 
-
-
-
 class EngineSettings:
     """
     Main engine configuration container with zero-origin ID support
@@ -196,6 +197,7 @@ class EngineSettings:
         self.DATA_DIRECTORY = Path("src/data")
         self.LOGS_DIRECTORY = Path(self.LOGGING.log_directory)
         self.JSONS_DIRECTORY = Path("src/data/jsons")
+        self.DEFAULT_SCENE_FILE = "src/data/jsons/multiple_scenes.json"
 
         self.ensure_directories()
         self._log_new_features()
@@ -218,15 +220,20 @@ class EngineSettings:
             print(f"  - Expanded speed range: 0-{self.ANIMATION.speed_range_max}%")
             print(f"  - Fractional positioning: {self.ANIMATION.fractional_positioning}")
             print(f"  - Time-based dimmer: {self.ANIMATION.time_based_dimmer}")
+            print(f"  - Master brightness: {self.ANIMATION.master_brightness}/255")
+            print(f"  - Minimum brightness: {self.ANIMATION.minimum_brightness}")
     
     def get_led_destinations(self) -> List[LEDDestination]:
         """Get validated LED destinations"""
         return self.ANIMATION.led_destinations
     
+    def get_current_led_count(self) -> int:
+        """Get current LED count (can be overridden by scene)"""
+        return self.ANIMATION.led_count
+    
     def validate_configuration(self) -> bool:
         """Validate entire configuration"""
         try:
-            # Validate basic settings
             if self.ANIMATION.target_fps <= 0:
                 raise ValueError("target_fps must be positive")
             
@@ -239,7 +246,6 @@ class EngineSettings:
             if not (0 <= self.ANIMATION.speed_range_max <= 1023):
                 raise ValueError("speed_range_max must be 0-1023")
             
-            # Validate LED destinations
             destinations = self.get_led_destinations()
             if not destinations:
                 raise ValueError("At least one LED destination must be configured")
