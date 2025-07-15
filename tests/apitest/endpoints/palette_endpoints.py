@@ -21,7 +21,7 @@ async def change_palette(request: ChangePaletteRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Palette changed to: {request.palette_id}"
+        log_message = f"Đã thay đổi palette thành: {request.palette_id}"
         
         return OSCApiResponse(
             success=response.is_success(),
@@ -36,8 +36,8 @@ async def change_palette(request: ChangePaletteRequest):
 
 @router.put("/palette/{palette_id}/{color_id}", response_model=OSCApiResponse)
 async def update_palette_color(
-    palette_id: str = Path(..., pattern="^[A-E]$", description="Palette ID (A-E)"),
-    color_id: int = Path(..., ge=0, le=5, description="Color ID (0-5)"),
+    palette_id: int = Path(..., description="Palette ID (0-origin)"),
+    color_id: int = Path(..., description="Color ID (0-5)"),
     request: PaletteColorRequest = Body(...)
 ):
     try:
@@ -51,7 +51,7 @@ async def update_palette_color(
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Palette {palette_id} color {color_id} updated to RGB({request.r},{request.g},{request.b})"
+        log_message = f"Đã cập nhật palette {palette_id} màu {color_id} thành RGB({request.r},{request.g},{request.b})"
         
         return OSCApiResponse(
             success=response.is_success(),

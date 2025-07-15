@@ -20,7 +20,7 @@ async def load_json(request: LoadJsonRequest):
      
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Scene loaded from: {request.file_path}"
+        log_message = f"Đã tải scene từ: {request.file_path}"
         
         return OSCApiResponse(
             success=response.is_success(),
@@ -43,7 +43,7 @@ async def change_scene(request: ChangeSceneRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Scene changed to: {request.scene_id}"
+        log_message = f"Đã thay đổi scene thành: {request.scene_id}"
         
         return OSCApiResponse(
             success=response.is_success(),

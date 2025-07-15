@@ -2,46 +2,50 @@
 API Request/Response Models - Pydantic Models
 """
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 class LoadJsonRequest(BaseModel):
     """Load scene from JSON file"""
-    file_path: str = Field(..., description="Path to JSON file")
+    file_path: str
 
 class LoadDissolveJsonRequest(BaseModel):
     """Load dissolve pattern from JSON file"""
-    file_path: str = Field(..., description="Path to dissolve JSON file")
+    file_path: str
 
 class ChangeSceneRequest(BaseModel):
     """Change scene request"""
-    scene_id: int = Field(..., ge=0, description="Scene ID")
+    scene_id: int
 
 class ChangeEffectRequest(BaseModel):
     """Change effect request"""
-    effect_id: int = Field(..., ge=0, description="Effect ID")
+    effect_id: int
 
 class ChangePaletteRequest(BaseModel):
     """Change palette request"""
-    palette_id: int = Field(..., ge=0, le=5, description="Palette ID (0-5)")
+    palette_id: int
 
 class PaletteColorRequest(BaseModel):
     """Update palette color request"""
-    r: int = Field(..., ge=0, le=255, description="Red component (0-255)")
-    g: int = Field(..., ge=0, le=255, description="Green component (0-255)")
-    b: int = Field(..., ge=0, le=255, description="Blue component (0-255)")
+    r: int
+    g: int
+    b: int
+
+class SetDissolvePatternRequest(BaseModel):
+    """Set dissolve pattern request"""
+    pattern_id: int
 
 class DissolveTimeRequest(BaseModel):
     """Set dissolve time request"""
-    time_ms: int = Field(..., ge=0, description="Dissolve time in milliseconds")
+    time_ms: int
 
 class SpeedPercentRequest(BaseModel):
-    """Set speed percent request"""
-    percent: int = Field(..., ge=0, le=200, description="Speed percentage (0-200%)")
+    """Set speed percent request - expanded range 0-1023%"""
+    percent: int
 
 class MasterBrightnessRequest(BaseModel):
     """Set master brightness request"""
-    brightness: int = Field(..., ge=0, le=255, description="Master brightness (0-255)")
+    brightness: int
 
 class OSCApiResponse(BaseModel):
     """OSC API response"""

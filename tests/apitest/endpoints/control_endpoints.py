@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from dataclass.api_models import (
     ChangeEffectRequest, DissolveTimeRequest, 
     SpeedPercentRequest, MasterBrightnessRequest, OSCApiResponse,
-    LoadDissolveJsonRequest
+    LoadDissolveJsonRequest, SetDissolvePatternRequest
 )
 from dataclass.osc_models import OSCRequest, OSCMessageType, OSCDataType
 from services.osc_client import OSCClientContext, UDPOSCClient
@@ -24,7 +24,7 @@ async def change_effect(request: ChangeEffectRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Effect changed to: {request.effect_id}"
+        log_message = f"Effect đã thay đổi thành: {request.effect_id}"
         
         return OSCApiResponse(
             success=response.is_success(),
@@ -50,13 +50,39 @@ async def load_dissolve_json(request: LoadDissolveJsonRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Loaded dissolve pattern from: {request.file_path}"
+        log_message = f"Đã tải dissolve pattern từ: {request.file_path}"
         
         return OSCApiResponse(
             success=response.is_success(),
             message=log_message,
             data={
                 "file_path": request.file_path,
+                "osc_response": response.__dict__
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/set_dissolve_pattern", response_model=OSCApiResponse)
+async def set_dissolve_pattern(request: SetDissolvePatternRequest):
+    """
+    Set dissolve pattern by ID (0-origin).
+    """
+    try:
+        osc_request = OSCRequest()
+        osc_request.set_address("/set_dissolve_pattern")
+        osc_request.set_message_type(OSCMessageType.LED_CONTROL)
+        osc_request.add_parameter("pattern_id", request.pattern_id, OSCDataType.INT, "Dissolve pattern ID")
+        
+        response = await osc_client.send_message(osc_request)
+        
+        log_message = f"Đã đặt dissolve pattern thành: {request.pattern_id}"
+        
+        return OSCApiResponse(
+            success=response.is_success(),
+            message=log_message,
+            data={
+                "pattern_id": request.pattern_id,
                 "osc_response": response.__dict__
             }
         )
@@ -73,7 +99,7 @@ async def set_dissolve_time(request: DissolveTimeRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Dissolve time set to: {request.time_ms}ms"
+        log_message = f"Đã đặt dissolve time thành: {request.time_ms}ms"
         
         return OSCApiResponse(
             success=response.is_success(),
@@ -97,7 +123,7 @@ async def set_speed_percent(request: SpeedPercentRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Animation speed set to: {request.percent}%"
+        log_message = f"Đã đặt tốc độ animation thành: {request.percent}% (phạm vi: 0-1023%)"
         
         return OSCApiResponse(
             success=response.is_success(),
@@ -120,7 +146,7 @@ async def master_brightness(request: MasterBrightnessRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Master brightness set to: {request.brightness}"
+        log_message = f"Đã đặt master brightness thành: {request.brightness} (phạm vi: 0-255)"
         
         return OSCApiResponse(
             success=response.is_success(),

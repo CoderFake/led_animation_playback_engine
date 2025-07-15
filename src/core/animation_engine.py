@@ -1,11 +1,12 @@
 """
-LED Animation Playback Engine - Fixed version with proper LED count handling
-Supports time-based rendering, auto-loading, and improved brightness handling
+LED Animation Playback Engine - Conditional animation loop
+Animation only runs when scenes are loaded
 """
 
 import asyncio
 import time
 import threading
+import json
 from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass
 from collections import deque
@@ -23,9 +24,6 @@ logger = ComponentLogger("AnimationEngine")
 
 @dataclass
 class EngineStats:
-    """
-    Comprehensive engine statistics for monitoring and debugging
-    """
     target_fps: int = 60
     actual_fps: float = 0.0
     frame_count: int = 0
@@ -37,18 +35,74 @@ class EngineStats:
     dissolve_time: int = 1000
     memory_usage_mb: float = 0.0
     cpu_usage_percent: float = 0.0
+    animation_running: bool = False
 
+
+class DissolvePatternManager:
+    
+    def __init__(self):
+        self.patterns: Dict[int, List[List[int]]] = {}
+        self.current_pattern_id: int = 0
+        self.enabled: bool = True
+        
+    def load_patterns_from_file(self, file_path: str) -> bool:
+        try:
+            file_path_obj = Path(file_path)
+            if not file_path_obj.exists():
+                logger.error(f"Dissolve pattern file not found: {file_path}")
+                return False
+            
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            if "dissolve_patterns" not in data:
+                logger.error(f"File {file_path} missing 'dissolve_patterns' key")
+                return False
+            
+            patterns_data = data["dissolve_patterns"]
+            self.patterns.clear()
+            
+            for pattern_id_str, pattern_data in patterns_data.items():
+                try:
+                    pattern_id = int(pattern_id_str)
+                    if isinstance(pattern_data, list):
+                        self.patterns[pattern_id] = pattern_data
+                        logger.debug(f"Loaded dissolve pattern {pattern_id}: {len(pattern_data)} transitions")
+                    else:
+                        logger.warning(f"Invalid pattern data format for pattern {pattern_id}")
+                except ValueError:
+                    logger.warning(f"Invalid pattern ID: {pattern_id_str}")
+                    continue
+            
+            logger.info(f"Loaded {len(self.patterns)} dissolve patterns from {file_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error loading dissolve patterns: {e}")
+            return False
+    
+    def get_pattern(self, pattern_id: int) -> Optional[List[List[int]]]:
+        return self.patterns.get(pattern_id)
+    
+    def set_current_pattern(self, pattern_id: int) -> bool:
+        if pattern_id in self.patterns:
+            self.current_pattern_id = pattern_id
+            logger.info(f"Current dissolve pattern set to {pattern_id}")
+            return True
+        else:
+            logger.warning(f"Dissolve pattern {pattern_id} not found")
+            return False
+    
+    def get_available_patterns(self) -> List[int]:
+        return list(self.patterns.keys())
 
 class AnimationEngine:
-    """
-    Main LED Animation Playback Engine with improved brightness handling and auto-loading
-    Handles real-time animation processing with time-based rendering and dynamic LED counts
-    """
     
     def __init__(self):
         self.scene_manager = SceneManager()
         self.led_output = LEDOutput()
         self.osc_handler = OSCHandler(self)
+        self.dissolve_manager = DissolvePatternManager()
         
         self.stats = EngineStats()
         self.performance_monitor = PerformanceMonitor()
@@ -76,20 +130,24 @@ class AnimationEngine:
         self.state_callbacks: List[Callable] = []
         self._lock = threading.RLock()
         
+        # Animation loop control
+        self.animation_running = False
+        self.animation_should_stop = False
+        
         self.stats.total_leds = EngineSettings.ANIMATION.led_count
         self.stats.target_fps = self.target_fps
         self.stats.master_brightness = self.master_brightness
         self.stats.speed_percent = self.speed_percent
         self.stats.dissolve_time = self.dissolve_time
+        self.stats.animation_running = False
         
         self._setup_osc_handlers()
         
-        logger.info(f"AnimationEngine initialized with zero-origin ID system")
+        logger.info(f"AnimationEngine initialized with conditional animation loop")
         logger.info(f"Target: {self.target_fps} FPS, {EngineSettings.ANIMATION.led_count} LEDs")
-        logger.info(f"Speed range: 0-1023%, Frame interval: {self.frame_interval*1000:.2f}ms")
+        logger.info(f"Animation will start only when scenes are loaded")
     
     def get_current_led_count(self) -> int:
-        """Get current LED count from active scene or default"""
         try:
             scene_info = self.scene_manager.get_current_scene_info()
             return scene_info.get('led_count', EngineSettings.ANIMATION.led_count)
@@ -97,14 +155,13 @@ class AnimationEngine:
             return EngineSettings.ANIMATION.led_count
     
     def _setup_osc_handlers(self):
-        """
-        Configure OSC message handlers for engine control with zero-origin IDs
-        """
         handlers = {
             "/load_json": self.handle_load_json,
             "/change_scene": self.handle_change_scene,
             "/change_effect": self.handle_change_effect,
             "/change_palette": self.handle_change_palette,
+            "/load_dissolve_json": self.handle_load_dissolve_json,
+            "/set_dissolve_pattern": self.handle_set_dissolve_pattern,
             "/set_dissolve_time": self.handle_set_dissolve_time,
             "/set_speed_percent": self.handle_set_speed_percent,
             "/master_brightness": self.handle_master_brightness,
@@ -119,9 +176,6 @@ class AnimationEngine:
         logger.info(f"Registered {len(handlers)} OSC handlers")
     
     async def start(self):
-        """
-        Start the animation engine and all subsystems with auto-loading
-        """
         try:
             logger.info("Starting Animation Engine subsystems...")
             
@@ -138,26 +192,15 @@ class AnimationEngine:
             await self.led_output.start()
             
             logger.info("Starting OSC Handler...")
-                        
             await self.osc_handler.start()
-            
-            logger.info("Starting Animation Loop...")
-            self._start_animation_loop()
             
             logger.info("Starting Performance Monitoring...")
             self._start_monitoring()
             
             self.running = True
             
-            await asyncio.sleep(0.2)
-            if self.frame_count == 0:
-                logger.warning("Animation loop may not be working - no frames processed")
-            else:
-                logger.info(f"Animation loop verified - {self.frame_count} frames processed")
-            
-            await asyncio.sleep(0.1)
-            
             logger.info("Animation Engine started successfully")
+            logger.info("Waiting for JSON scenes to be loaded before starting animation loop")
             
         except Exception as e:
             logger.error(f"Error starting engine: {e}")
@@ -165,37 +208,69 @@ class AnimationEngine:
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
-    async def _auto_load_default_scenes(self):
-        """Auto-load default scenes if available"""
+    def _start_animation_loop(self):
+        if self.animation_running:
+            logger.warning("Animation loop already running")
+            return
+        
+        if self.animation_thread and self.animation_thread.is_alive():
+            logger.warning("Animation thread already exists")
+            return
+        
+        self.animation_running = True
+        self.animation_should_stop = False
+        
+        with self._lock:
+            self.stats.animation_running = True
+        
+        self.animation_thread = threading.Thread(
+            target=self._animation_loop,
+            daemon=True,
+            name="AnimationLoop"
+        )
+        self.animation_thread.start()
+        
+        logger.info("Animation loop started")
+        
+        time.sleep(0.1)
+        if not self.animation_thread.is_alive():
+            logger.error("Animation thread failed to start!")
+            self.animation_running = False
+            with self._lock:
+                self.stats.animation_running = False
+    
+    def _stop_animation_loop(self):
+        if not self.animation_running:
+            return
+        
+        logger.info("Stopping animation loop...")
+        
+        self.animation_should_stop = True
+        
+        if self.animation_thread and self.animation_thread.is_alive():
+            self.animation_thread.join(timeout=2.0)
+            if self.animation_thread.is_alive():
+                logger.warning("Animation thread did not stop gracefully")
+        
+        self.animation_running = False
+        with self._lock:
+            self.stats.animation_running = False
+        
+        logger.info("Animation loop stopped")
+    
+    def _check_scenes_available(self) -> bool:
         try:
-            default_scene_file = Path(EngineSettings.DEFAULT_SCENE_FILE)
-            if default_scene_file.exists():
-                logger.info(f"Auto-loading default scenes from {default_scene_file}")
-                success = self.scene_manager.load_multiple_scenes_from_file(str(default_scene_file))
-                if success:
-                    logger.info("Default scenes loaded successfully")
-                    self.stats.total_leds = self.get_current_led_count()
-                    self._notify_state_change()
-                else:
-                    logger.warning("Failed to load default scenes")
-            else:
-                logger.info("No default scene file found, engine ready for manual loading")
-        except Exception as e:
-            logger.error(f"Error auto-loading default scenes: {e}")
-
+            scene_info = self.scene_manager.get_current_scene_info()
+            return scene_info.get('scene_id') is not None
+        except Exception:
+            return False
+    
     async def stop(self):
-        """
-        Stop the animation engine and cleanup resources
-        """
         logger.info("Stopping Animation Engine...")
         
         self.running = False
         
-        if self.animation_thread and self.animation_thread.is_alive():
-            logger.info("Waiting for animation thread to stop...")
-            self.animation_thread.join(timeout=2.0)
-            if self.animation_thread.is_alive():
-                logger.warning("Animation thread did not stop gracefully")
+        self._stop_animation_loop()
         
         if self.monitoring_thread and self.monitoring_thread.is_alive():
             logger.info("Stopping monitoring thread...")
@@ -207,37 +282,12 @@ class AnimationEngine:
         final_stats = self.get_stats()
         logger.info(f"Engine stopped after {final_stats.animation_time:.1f}s")
         logger.info(f"Processed {final_stats.frame_count} frames")
-        logger.info(f"Average FPS: {final_stats.actual_fps:.1f}")
+        if final_stats.frame_count > 0:
+            logger.info(f"Average FPS: {final_stats.actual_fps:.1f}")
         
         logger.info("Animation Engine stopped successfully")
     
-    def _start_animation_loop(self):
-        """
-        Start the high-priority animation loop in a separate thread
-        """
-        if self.animation_thread and self.animation_thread.is_alive():
-            logger.warning("Animation thread already running")
-            return
-            
-        self.animation_thread = threading.Thread(
-            target=self._animation_loop,
-            daemon=True,
-            name="AnimationLoop"
-        )
-        self.animation_thread.start()
-        logger.info("Animation loop thread started")
-        
-        # Verify thread is actually running
-        time.sleep(0.1)
-        if not self.animation_thread.is_alive():
-            logger.error("Animation thread failed to start!")
-        else:
-            logger.info("Animation thread verified running")
-    
     def _start_monitoring(self):
-        """
-        Start performance monitoring in a separate thread
-        """
         if self.monitoring_thread and self.monitoring_thread.is_alive():
             return
             
@@ -250,9 +300,6 @@ class AnimationEngine:
         logger.info("Performance monitoring thread started")
     
     def _animation_loop(self):
-        """
-        Main high-performance animation loop with time-based rendering
-        """
         try:
             logger.info(f"Animation loop started - Target: {self.target_fps} FPS")
             
@@ -261,13 +308,17 @@ class AnimationEngine:
             self.fps_frame_count = 0
             
             fps_log_interval = 600
-            performance_log_interval = 3600
             
-            while self.running:
+            while self.running and not self.animation_should_stop:
+                if not self._check_scenes_available():
+                    logger.debug("No scenes available, pausing animation loop")
+                    time.sleep(0.1)
+                    continue
+                
                 frame_start = time.perf_counter()
                 
                 try:
-                    frame_timeout = 0.1  
+                    frame_timeout = 0.1
                     
                     delta_time = frame_start - self.last_frame_time
                     self.last_frame_time = frame_start
@@ -296,14 +347,10 @@ class AnimationEngine:
                         self._log_fps_status()
                         self.fps_frame_count = 0
                     
-                    if self.frame_count % performance_log_interval == 0 and self.frame_count > 0:
-                        self._log_detailed_performance()
-                    
                 except Exception as e:
                     logger.error(f"Error in animation loop frame: {e}")
                     import traceback
                     logger.error(f"Traceback: {traceback.format_exc()}")
-                    # Don't exit loop on error, just continue
                 
                 frame_time = time.perf_counter() - frame_start
                 sleep_time = max(0, self.frame_interval - frame_time)
@@ -320,12 +367,12 @@ class AnimationEngine:
             logger.error(f"FATAL ERROR in animation loop: {e}")
             import traceback
             logger.error(f"Animation loop traceback: {traceback.format_exc()}")
-            logger.info("Animation loop stopped due to error")
+        finally:
+            self.animation_running = False
+            with self._lock:
+                self.stats.animation_running = False
     
     def _monitoring_loop(self):
-        """
-        Background performance monitoring loop
-        """
         logger.debug("Performance monitoring loop started")
         
         while self.running:
@@ -337,7 +384,7 @@ class AnimationEngine:
                 
                 perf_stats = self.performance_monitor.get_stats()
                 
-                if perf_stats['current_fps'] < self.target_fps * 0.8:
+                if self.animation_running and perf_stats['current_fps'] < self.target_fps * 0.8:
                     logger.warning(f"Performance degraded: {perf_stats['current_fps']:.1f} FPS")
                 
                 if perf_stats['frame_time_max_ms'] > self.frame_interval * 1000 * 2:
@@ -349,9 +396,6 @@ class AnimationEngine:
         logger.debug("Performance monitoring loop stopped")
     
     def _log_fps_status(self):
-        """
-        Log FPS status and performance metrics
-        """
         if self.fps_history:
             average_fps = sum(self.fps_history) / len(self.fps_history)
             
@@ -365,56 +409,33 @@ class AnimationEngine:
             if efficiency < 90:
                 logger.warning(f"Performance below target: {efficiency:.1f}%")
     
-    def _log_detailed_performance(self):
-        """
-        Log detailed performance analysis
-        """
-        try:
-            perf_stats = self.performance_monitor.get_stats()
-            profiler_stats = self.profiler.get_all_stats()
-            
-            logger.info("=== DETAILED PERFORMANCE ANALYSIS ===")
-            logger.performance("average_fps", perf_stats['average_fps'], " FPS")
-            logger.performance("frame_time_avg", perf_stats['frame_time_avg_ms'], "ms")
-            logger.performance("frame_time_max", perf_stats['frame_time_max_ms'], "ms")
-            logger.performance("uptime", perf_stats['uptime'], "s")
-            
-            for timer_name, timer_stats in profiler_stats.items():
-                if timer_stats['call_count'] > 0:
-                    logger.performance(f"{timer_name}_avg", timer_stats['average_time']*1000, "ms")
-            
-        except Exception as e:
-            logger.error(f"Error logging detailed performance: {e}")
-    
     def get_stats(self) -> EngineStats:
-        """
-        Get comprehensive engine statistics
-        """
         with self._lock:
             stats_copy = EngineStats()
             stats_copy.target_fps = self.target_fps
             stats_copy.actual_fps = self.stats.actual_fps
             stats_copy.frame_count = self.frame_count
+            stats_copy.animation_running = self.animation_running
             
-            led_colors = self.scene_manager.get_led_output_with_timing(time.time())
-            active_leds = sum(1 for color in led_colors if any(c > 0 for c in color[:3]))
-            stats_copy.active_leds = active_leds
+            if self.animation_running:
+                led_colors = self.scene_manager.get_led_output_with_timing(time.time())
+                active_leds = sum(1 for color in led_colors if any(c > 0 for c in color[:3]))
+                stats_copy.active_leds = active_leds
+            else:
+                stats_copy.active_leds = 0
+                
             stats_copy.total_leds = self.get_current_led_count()
-            
             stats_copy.animation_time = time.time() - self.engine_start_time
             stats_copy.master_brightness = self.master_brightness
             stats_copy.speed_percent = self.speed_percent
             stats_copy.dissolve_time = self.dissolve_time
             
-            self.stats.active_leds = active_leds
+            self.stats.active_leds = stats_copy.active_leds
             self.stats.total_leds = stats_copy.total_leds
             
             return stats_copy
     
     def _update_frame(self, delta_time: float, current_time: float):
-        """
-        Update one animation frame with time-based rendering and dynamic LED count
-        """
         try:
             with self._lock:
                 speed_percent = self.speed_percent
@@ -422,36 +443,21 @@ class AnimationEngine:
             
             adjusted_delta = delta_time * (speed_percent / 100.0)
             
-            # Simple timing without profiler
             scene_start = time.perf_counter()
             self.scene_manager.update_animation(adjusted_delta)
-            scene_time = time.perf_counter() - scene_start
             
             led_start = time.perf_counter()
             led_colors = self.scene_manager.get_led_output_with_timing(current_time)
-            led_time = time.perf_counter() - led_start
-            
-            # Debug: log first few frames
-            if self.frame_count < 5:
-                active_leds = sum(1 for color in led_colors if any(c > 0 for c in color[:3]))
-                logger.debug(f"Frame {self.frame_count}: {active_leds}/{len(led_colors)} LEDs active, scene: {scene_time*1000:.1f}ms, led: {led_time*1000:.1f}ms")
             
             if master_brightness < 255:
-                brightness_start = time.perf_counter()
                 brightness_factor = master_brightness / 255.0
                 led_colors = [
                     [int(c * brightness_factor) for c in color]
                     for color in led_colors
                 ]
-                brightness_time = time.perf_counter() - brightness_start
             
-            output_start = time.perf_counter()
+            outpu_start = time.perf_counter()
             self.led_output.send_led_data(led_colors)
-            output_time = time.perf_counter() - output_start
-            
-            # Log timing for first few frames
-            if self.frame_count < 5:
-                logger.debug(f"Frame {self.frame_count} timing: scene={scene_time*1000:.1f}ms, led={led_time*1000:.1f}ms, output={output_time*1000:.1f}ms")
                 
         except Exception as e:
             logger.error(f"Error in _update_frame: {e}")
@@ -459,15 +465,9 @@ class AnimationEngine:
             logger.error(f"Traceback: {traceback.format_exc()}")
     
     def add_state_callback(self, callback: Callable):
-        """
-        Add a callback for state changes
-        """
         self.state_callbacks.append(callback)
     
     def _notify_state_change(self):
-        """
-        Notify registered callbacks of state changes
-        """
         for callback in self.state_callbacks:
             try:
                 callback()
@@ -475,15 +475,12 @@ class AnimationEngine:
                 logger.error(f"Error in state callback: {e}")
     
     def get_scene_info(self) -> Dict[str, Any]:
-        """
-        Get current scene information
-        """
         return self.scene_manager.get_current_scene_info()
     
     def get_led_colors(self) -> List[List[int]]:
-        """
-        Get current LED colors for external access with time-based rendering
-        """
+        if not self.animation_running:
+            return [[0, 0, 0] for _ in range(self.get_current_led_count())]
+            
         led_colors = self.scene_manager.get_led_output_with_timing(time.time())
         
         if self.master_brightness < 255:
@@ -496,35 +493,42 @@ class AnimationEngine:
         return led_colors
     
     def handle_load_json(self, address: str, *args):
-        """
-        Handle OSC message to load a JSON scene file
-        Auto-append .json extension if missing
-        """
         try:
+            logger.info(f"OSC received: {address} with args: {args}")
+            
             if not args or len(args) == 0:
-                logger.warning("Missing json path argument")
+                logger.warning("Missing JSON path parameter")
                 return
             
             file_path = str(args[0])
+            logger.info(f"Loading JSON from: {file_path}")
             
             if not file_path.lower().endswith('.json'):
                 file_path += '.json'
+                logger.info(f"Appended .json extension: {file_path}")
             
             success = False
             
             try:
                 with self._lock:
                     if "multiple" in file_path.lower() or "scenes" in file_path.lower():
+                        logger.info("Loading multiple scenes...")
                         success = self.scene_manager.load_multiple_scenes_from_file(file_path)
                     else:
+                        logger.info("Loading single scene...")
                         success = self.scene_manager.load_scene_from_file(file_path)
                         
                     if not success:
+                        logger.info("Retrying as multiple scenes...")
                         success = self.scene_manager.load_multiple_scenes_from_file(file_path)
                         
                 if success:
                     self._notify_state_change()
                     logger.operation("load_json", f"Successfully loaded {file_path}")
+                    
+                    if not self.animation_running:
+                        self._start_animation_loop()
+                        logger.info("Animation loop started after loading scenes")
                 else:
                     logger.error(f"Failed to load JSON from {file_path}")
                         
@@ -534,17 +538,83 @@ class AnimationEngine:
         except Exception as e:
             logger.error(f"Error in handle_load_json: {e}")
     
-    def handle_change_scene(self, address: str, *args):
-        """
-        Handle OSC message to change the active scene (zero-origin ID)
-        """
+    def handle_load_dissolve_json(self, address: str, *args):
         try:
+            logger.info(f"OSC received: {address} with args: {args}")
+            
             if not args or len(args) == 0:
-                logger.warning("Missing scene ID argument")
+                logger.warning("Missing dissolve file path parameter")
+                return
+            
+            file_path = str(args[0])
+            logger.info(f"Loading dissolve patterns from: {file_path}")
+            
+            if not file_path.lower().endswith('.json'):
+                file_path += '.json'
+                logger.info(f"Appended .json extension: {file_path}")
+            
+            success = self.dissolve_manager.load_patterns_from_file(file_path)
+            
+            if success:
+                available_patterns = self.dissolve_manager.get_available_patterns()
+                logger.operation("load_dissolve_json", f"Successfully loaded dissolve patterns from {file_path}")
+                logger.info(f"Available patterns: {available_patterns}")
+                self._notify_state_change()
+            else:
+                logger.error(f"Failed to load dissolve patterns from {file_path}")
+                
+        except Exception as e:
+            logger.error(f"Error in handle_load_dissolve_json: {e}")
+    
+    def handle_set_dissolve_pattern(self, address: str, *args):
+        try:
+            logger.info(f"OSC received: {address} with args: {args}")
+            
+            if not args or len(args) == 0:
+                logger.warning("Missing pattern ID parameter")
+                return
+            
+            try:
+                pattern_id = int(args[0])
+                logger.info(f"Setting dissolve pattern to: {pattern_id}")
+                
+                # Validate pattern ID
+                available_patterns = self.dissolve_manager.get_available_patterns()
+                if pattern_id not in available_patterns and available_patterns:
+                    logger.warning(f"Invalid pattern ID {pattern_id}. Available patterns: {available_patterns}")
+                    return
+                
+                success = self.dissolve_manager.set_current_pattern(pattern_id)
+                
+                if success:
+                    logger.operation("set_dissolve_pattern", f"Successfully set pattern to {pattern_id}")
+                    self._notify_state_change()
+                else:
+                    logger.warning(f"Failed to set pattern {pattern_id}")
+                    
+            except ValueError:
+                logger.error(f"Invalid pattern ID: {args[0]} (must be an integer)")
+                
+        except Exception as e:
+            logger.error(f"Error in handle_set_dissolve_pattern: {e}")
+    
+    def handle_change_scene(self, address: str, *args):
+        try:
+            logger.info(f"OSC received: {address} with args: {args}")
+            
+            if not args or len(args) == 0:
+                logger.warning("Missing scene ID parameter")
                 return
             
             try:
                 scene_id = int(args[0])
+                logger.info(f"Changing scene to: {scene_id}")
+                
+                # Validate scene ID
+                scene_info = self.scene_manager.get_current_scene_info()
+                available_scenes = scene_info.get('available_scenes', [])
+                if available_scenes and scene_id not in available_scenes:
+                    logger.warning(f"Invalid scene ID {scene_id}. Available scenes: {available_scenes}")
                 
                 with self._lock:
                     success = self.scene_manager.switch_scene(scene_id)
@@ -552,27 +622,33 @@ class AnimationEngine:
                         self._notify_state_change()
                 
                 if success:
-                    logger.operation("change_scene", f"Scene changed to {scene_id}")
+                    logger.operation("change_scene", f"Successfully changed scene to {scene_id}")
                 else:
-                    logger.warning(f"Failed to switch to scene: {scene_id}")
+                    logger.warning(f"Failed to change scene to: {scene_id}")
                     
             except ValueError:
-                logger.error(f"Invalid scene ID: {args[0]}")
+                logger.error(f"Invalid scene ID: {args[0]} (must be an integer)")
                 
         except Exception as e:
             logger.error(f"Error in handle_change_scene: {e}")
     
     def handle_change_effect(self, address: str, *args):
-        """
-        Handle OSC message to change the current effect (zero-origin ID)
-        """
         try:
+            logger.info(f"OSC received: {address} with args: {args}")
+            
             if not args or len(args) == 0:
-                logger.warning("Missing effect ID argument")
+                logger.warning("Missing effect ID parameter")
                 return
             
             try:
                 effect_id = int(args[0])
+                logger.info(f"Changing effect to: {effect_id}")
+                
+                # Validate effect ID
+                scene_info = self.scene_manager.get_current_scene_info()
+                available_effects = scene_info.get('available_effects', [])
+                if available_effects and effect_id not in available_effects:
+                    logger.warning(f"Invalid effect ID {effect_id}. Available effects: {available_effects}")
                 
                 with self._lock:
                     success = self.scene_manager.set_effect(effect_id)
@@ -580,27 +656,33 @@ class AnimationEngine:
                         self._notify_state_change()
                 
                 if success:
-                    logger.operation("change_effect", f"Effect changed to {effect_id}")
+                    logger.operation("change_effect", f"Successfully changed effect to {effect_id}")
                 else:
-                    logger.warning(f"Failed to set effect: {effect_id}")
+                    logger.warning(f"Failed to change effect to: {effect_id}")
                     
             except ValueError:
-                logger.error(f"Invalid effect ID: {args[0]}")
+                logger.error(f"Invalid effect ID: {args[0]} (must be an integer)")
                 
         except Exception as e:
             logger.error(f"Error in handle_change_effect: {e}")
     
     def handle_change_palette(self, address: str, *args):
-        """
-        Handle OSC message to change the current palette (zero-origin int ID)
-        """
         try:
+            logger.info(f"OSC received: {address} with args: {args}")
+            
             if not args or len(args) == 0:
-                logger.warning("Missing palette ID argument")
+                logger.warning("Missing palette ID parameter")
                 return
             
             try:
                 palette_id = int(args[0])
+                logger.info(f"Changing palette to: {palette_id}")
+                
+                # Validate palette ID
+                scene_info = self.scene_manager.get_current_scene_info()
+                available_palettes = scene_info.get('available_palettes', [])
+                if available_palettes and palette_id not in available_palettes:
+                    logger.warning(f"Invalid palette ID {palette_id}. Available palettes: {available_palettes}")
                 
                 with self._lock:
                     success = self.scene_manager.set_palette(palette_id)
@@ -608,33 +690,58 @@ class AnimationEngine:
                         self._notify_state_change()
                 
                 if success:
-                    logger.operation("change_palette", f"Palette changed to {palette_id}")
+                    logger.operation("change_palette", f"Successfully changed palette to {palette_id}")
                 else:
-                    logger.warning(f"Failed to set palette: {palette_id}")
+                    logger.warning(f"Failed to change palette to: {palette_id}")
                     
             except ValueError:
-                logger.error(f"Invalid palette ID: {args[0]}")
+                logger.error(f"Invalid palette ID: {args[0]} (must be an integer)")
                 
         except Exception as e:
             logger.error(f"Error in handle_change_palette: {e}")
     
     def handle_palette_color(self, address: str, palette_id: str, color_id: int, rgb: List[int]):
-        """
-        Handle OSC message to update a palette color (convert string ID to zero-origin int)
-        """
         try:
+            logger.info(f"OSC received: {address} with palette_id: {palette_id}, color_id: {color_id}, rgb: {rgb}")
+            
             if isinstance(palette_id, str):
                 palette_int_id = ord(palette_id.upper()) - ord('A') if palette_id else 0
+                logger.info(f"Converted palette_id from '{palette_id}' to {palette_int_id}")
             else:
                 palette_int_id = int(palette_id)
+                logger.info(f"Using palette_id: {palette_int_id}")
+            
+            # Validate palette_id
+            if palette_int_id < 0 or palette_int_id > 4:
+                logger.warning(f"Invalid palette ID {palette_int_id} (must be 0-4)")
+                return
+            
+            # Validate color_id
+            if color_id < 0 or color_id > 5:
+                logger.warning(f"Invalid color ID {color_id} (must be 0-5)")
+                return
+            
+            # Validate RGB values
+            if len(rgb) != 3:
+                logger.warning(f"Invalid RGB values: {rgb} (must have 3 values)")
+                return
+            
+            validated_rgb = []
+            for i, value in enumerate(rgb):
+                if not isinstance(value, int) or value < 0 or value > 255:
+                    logger.warning(f"Invalid RGB[{i}] = {value} (must be 0-255)")
+                    return
+                validated_rgb.append(value)
+            
+            logger.info(f"Updating palette {palette_int_id} color {color_id} to RGB({validated_rgb[0]},{validated_rgb[1]},{validated_rgb[2]})")
             
             with self._lock:
-                success = self.scene_manager.update_palette_color(palette_int_id, color_id, rgb)
+                success = self.scene_manager.update_palette_color(palette_int_id, color_id, validated_rgb)
                 if success:
                     self._notify_state_change()
             
             if success:
-                logger.operation("palette_color", f"Palette {palette_int_id}[{color_id}] = RGB({rgb[0]},{rgb[1]},{rgb[2]})")
+                logger.operation("palette_color", f"Successfully updated palette {palette_int_id}[{color_id}] = RGB({validated_rgb[0]},{validated_rgb[1]},{validated_rgb[2]})")
             else:
                 logger.warning(f"Failed to update palette {palette_int_id} color {color_id}")
                 
@@ -642,78 +749,113 @@ class AnimationEngine:
             logger.error(f"Error in handle_palette_color: {e}")
     
     def handle_set_dissolve_time(self, address: str, *args):
-        """
-        Handle OSC message to set dissolve time
-        """
         try:
+            logger.info(f"OSC received: {address} with args: {args}")
+            
             if not args or len(args) == 0:
-                logger.warning("Missing dissolve time argument")
+                logger.warning("Missing dissolve time parameter")
                 return
             
             try:
                 dissolve_time = int(args[0])
+                logger.info(f"Setting dissolve time to: {dissolve_time}ms")
+                
+                # Validate dissolve time
+                if dissolve_time < 0:
+                    logger.warning(f"Invalid dissolve time {dissolve_time} (must be >= 0)")
+                    dissolve_time = 0
+                
+                if dissolve_time > 60000:  # 60 seconds max
+                    logger.warning(f"Dissolve time {dissolve_time}ms is too large, capping at 60000ms")
+                    dissolve_time = 60000
+                
                 with self._lock:
-                    self.dissolve_time = max(0, dissolve_time)
+                    old_time = self.dissolve_time
+                    self.dissolve_time = dissolve_time
                     self._notify_state_change()
-                logger.operation("set_dissolve_time", f"Dissolve time set to {self.dissolve_time}ms")
+                
+                logger.operation("set_dissolve_time", f"Successfully set dissolve time from {old_time}ms to {self.dissolve_time}ms")
                 
             except ValueError:
-                logger.error(f"Invalid dissolve time: {args[0]}")
+                logger.error(f"Invalid dissolve time: {args[0]} (must be an integer)")
                 
         except Exception as e:
             logger.error(f"Error in handle_set_dissolve_time: {e}")
     
     def handle_set_speed_percent(self, address: str, *args):
-        """
-        Handle OSC message to set animation speed percentage (expanded range 0-1023%)
-        """
         try:
+            logger.info(f"OSC received: {address} with args: {args}")
+            
             if not args or len(args) == 0:
-                logger.warning("Missing speed percent argument")
+                logger.warning("Missing speed percent parameter")
                 return
             
             try:
                 speed_percent = int(args[0])
+                logger.info(f"Setting animation speed to: {speed_percent}%")
+                
+                # Validate speed percent (0-1023% according to specs.md)
+                if speed_percent < 0:
+                    logger.warning(f"Invalid speed percent {speed_percent} (must be >= 0)")
+                    speed_percent = 0
+                
+                if speed_percent > 1023:
+                    logger.warning(f"Invalid speed percent {speed_percent} (must be <= 1023)")
+                    speed_percent = 1023
+                
                 with self._lock:
-                    self.speed_percent = max(0, min(1023, speed_percent))
+                    old_speed = self.speed_percent
+                    self.speed_percent = speed_percent
                     self._notify_state_change()
-                logger.operation("set_speed_percent", f"Animation speed set to {self.speed_percent}%")
+                
+                logger.operation("set_speed_percent", f"Successfully set animation speed from {old_speed}% to {self.speed_percent}%")
                 
             except ValueError:
-                logger.error(f"Invalid speed percent: {args[0]}")
+                logger.error(f"Invalid speed percent: {args[0]} (must be an integer)")
                 
         except Exception as e:
             logger.error(f"Error in handle_set_speed_percent: {e}")
     
     def handle_master_brightness(self, address: str, *args):
-        """
-        Handle OSC message for master brightness control
-        """
         try:
+            logger.info(f"OSC received: {address} with args: {args}")
+            
             if not args or len(args) == 0:
-                logger.warning("Missing brightness argument")
+                logger.warning("Missing brightness parameter")
                 return
             
             try:
                 brightness = int(args[0])
+                logger.info(f"Setting master brightness to: {brightness}")
+                
+                # Validate brightness (0-255)
+                if brightness < 0:
+                    logger.warning(f"Invalid brightness {brightness} (must be >= 0)")
+                    brightness = 0
+                
+                if brightness > 255:
+                    logger.warning(f"Invalid brightness {brightness} (must be <= 255)")
+                    brightness = 255
+                
                 with self._lock:
-                    self.master_brightness = max(0, min(255, brightness))
+                    old_brightness = self.master_brightness
+                    self.master_brightness = brightness
                     self._notify_state_change()
-                logger.operation("master_brightness", f"Master brightness set to {self.master_brightness}")
+                
+                logger.operation("master_brightness", f"Successfully set master brightness from {old_brightness} to {self.master_brightness}")
                 
             except ValueError:
-                logger.error(f"Invalid brightness: {args[0]}")
+                logger.error(f"Invalid brightness: {args[0]} (must be an integer)")
                 
         except Exception as e:
             logger.error(f"Error in handle_master_brightness: {e}")
     
     def handle_pattern_transition_config(self, address: str, *args):
-        """
-        Handle OSC message to configure pattern transitions
-        """
         try:
+            logger.info(f"OSC received: {address} with args: {args}")
+            
             if len(args) < 3:
-                logger.warning("Missing pattern transition config arguments. Expected: fade_in_ms fade_out_ms waiting_ms")
+                logger.warning("Missing pattern transition config parameters. Expected: fade_in_ms fade_out_ms waiting_ms")
                 return
             
             try:
@@ -721,16 +863,40 @@ class AnimationEngine:
                 fade_out_ms = int(args[1])
                 waiting_ms = int(args[2])
                 
+                logger.info(f"Configuring pattern transition: fade_in={fade_in_ms}ms, fade_out={fade_out_ms}ms, waiting={waiting_ms}ms")
+                
+                # Validate values
+                if fade_in_ms < 0:
+                    logger.warning(f"Invalid fade_in_ms {fade_in_ms} (must be >= 0)")
+                    fade_in_ms = 0
+                
+                if fade_out_ms < 0:
+                    logger.warning(f"Invalid fade_out_ms {fade_out_ms} (must be >= 0)")
+                    fade_out_ms = 0
+                
+                if waiting_ms < 0:
+                    logger.warning(f"Invalid waiting_ms {waiting_ms} (must be >= 0)")
+                    waiting_ms = 0
+                
                 self.scene_manager.set_transition_config(
                     fade_in_ms=fade_in_ms,
                     fade_out_ms=fade_out_ms,
                     waiting_ms=waiting_ms
                 )
                 
-                logger.operation("pattern_transition_config", f"Config updated: fade_in={fade_in_ms}ms, fade_out={fade_out_ms}ms, waiting={waiting_ms}ms")
+                logger.operation("pattern_transition_config", f"Successfully configured: fade_in={fade_in_ms}ms, fade_out={fade_out_ms}ms, waiting={waiting_ms}ms")
                 
             except ValueError:
-                logger.error(f"Invalid pattern transition config values: {args}")
+                logger.error(f"Invalid pattern transition config values: {args} (must be integers)")
                 
         except Exception as e:
             logger.error(f"Error in handle_pattern_transition_config: {e}")
+    
+    def get_dissolve_info(self) -> Dict[str, Any]:
+        return {
+            "enabled": self.dissolve_manager.enabled,
+            "current_pattern_id": self.dissolve_manager.current_pattern_id,
+            "available_patterns": self.dissolve_manager.get_available_patterns(),
+            "current_dissolve_time": self.dissolve_time,
+            "pattern_count": len(self.dissolve_manager.patterns)
+        }
