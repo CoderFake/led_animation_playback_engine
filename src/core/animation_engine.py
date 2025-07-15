@@ -18,6 +18,8 @@ from .osc_handler import OSCHandler
 from config.settings import EngineSettings
 from src.utils.logger import ComponentLogger
 from src.utils.performance import PerformanceMonitor, ProfilerManager
+from src.utils.logging import AnimationLogger, OSCLogger, LoggingUtils, PerformanceTracker
+from src.utils.validation import ValidationUtils
 
 logger = ComponentLogger("AnimationEngine")
 
@@ -130,7 +132,6 @@ class AnimationEngine:
         self.state_callbacks: List[Callable] = []
         self._lock = threading.RLock()
         
-        # Animation loop control
         self.animation_running = False
         self.animation_should_stop = False
         
@@ -460,9 +461,9 @@ class AnimationEngine:
             self.led_output.send_led_data(led_colors)
                 
         except Exception as e:
-            logger.error(f"Error in _update_frame: {e}")
+            LoggingUtils.log_error("Animation", f"Error in _update_frame: {e}")
             import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            LoggingUtils.log_error("Animation", f"Traceback: {traceback.format_exc()}")
     
     def add_state_callback(self, callback: Callable):
         self.state_callbacks.append(callback)
@@ -494,49 +495,52 @@ class AnimationEngine:
     
     def handle_load_json(self, address: str, *args):
         try:
-            logger.info(f"OSC received: {address} with args: {args}")
+            OSCLogger.log_received(address, list(args))
             
             if not args or len(args) == 0:
-                logger.warning("Missing JSON path parameter")
+                OSCLogger.log_validation_failed(address, "file_path", None, "non-empty string")
                 return
             
             file_path = str(args[0])
-            logger.info(f"Loading JSON from: {file_path}")
+            AnimationLogger.log_parameter_change("json_file", file_path)
             
             if not file_path.lower().endswith('.json'):
                 file_path += '.json'
-                logger.info(f"Appended .json extension: {file_path}")
+                LoggingUtils.log_info("Animation", f"Appended .json extension: {file_path}")
             
             success = False
             
             try:
                 with self._lock:
                     if "multiple" in file_path.lower() or "scenes" in file_path.lower():
-                        logger.info("Loading multiple scenes...")
+                        LoggingUtils.log_info("Animation", "Loading multiple scenes...")
                         success = self.scene_manager.load_multiple_scenes_from_file(file_path)
                     else:
-                        logger.info("Loading single scene...")
+                        LoggingUtils.log_info("Animation", "Loading single scene...")
                         success = self.scene_manager.load_scene_from_file(file_path)
                         
                     if not success:
-                        logger.info("Retrying as multiple scenes...")
+                        LoggingUtils.log_info("Animation", "Retrying as multiple scenes...")
                         success = self.scene_manager.load_multiple_scenes_from_file(file_path)
                         
                 if success:
                     self._notify_state_change()
-                    logger.operation("load_json", f"Successfully loaded {file_path}")
+                    scenes_count = len(self.scene_manager.scenes) if hasattr(self.scene_manager, 'scenes') else None
+                    AnimationLogger.log_json_loaded("scenes", scenes_count)
                     
                     if not self.animation_running:
                         self._start_animation_loop()
-                        logger.info("Animation loop started after loading scenes")
+                        LoggingUtils.log_info("Animation", "Animation loop started after loading scenes")
+                    
+                    OSCLogger.log_processed(address, "success")
                 else:
-                    logger.error(f"Failed to load JSON from {file_path}")
+                    OSCLogger.log_error(address, f"Failed to load JSON from {file_path}")
                         
             except Exception as load_error:
-                logger.error(f"Error loading JSON scenes: {load_error}")
+                OSCLogger.log_error(address, f"Error loading JSON scenes: {load_error}")
                 
         except Exception as e:
-            logger.error(f"Error in handle_load_json: {e}")
+            OSCLogger.log_error(address, f"Error in handle_load_json: {e}")
     
     def handle_load_dissolve_json(self, address: str, *args):
         try:
@@ -559,6 +563,9 @@ class AnimationEngine:
                 available_patterns = self.dissolve_manager.get_available_patterns()
                 logger.operation("load_dissolve_json", f"Successfully loaded dissolve patterns from {file_path}")
                 logger.info(f"Available patterns: {available_patterns}")
+                
+                self.scene_manager.load_dissolve_patterns(self.dissolve_manager.patterns)
+                
                 self._notify_state_change()
             else:
                 logger.error(f"Failed to load dissolve patterns from {file_path}")
@@ -578,19 +585,23 @@ class AnimationEngine:
                 pattern_id = int(args[0])
                 logger.info(f"Setting dissolve pattern to: {pattern_id}")
                 
-                # Validate pattern ID
                 available_patterns = self.dissolve_manager.get_available_patterns()
                 if pattern_id not in available_patterns and available_patterns:
-                    logger.warning(f"Invalid pattern ID {pattern_id}. Available patterns: {available_patterns}")
+                    logger.warning(f"Pattern ID {pattern_id} invalid. Available patterns: {available_patterns}")
                     return
                 
                 success = self.dissolve_manager.set_current_pattern(pattern_id)
                 
                 if success:
-                    logger.operation("set_dissolve_pattern", f"Successfully set pattern to {pattern_id}")
-                    self._notify_state_change()
+                    scene_success = self.scene_manager.set_dissolve_pattern(pattern_id)
+                    
+                    if scene_success:
+                        logger.operation("set_dissolve_pattern", f"Successfully set pattern to {pattern_id}")
+                        self._notify_state_change()
+                    else:
+                        logger.warning(f"Failed to set pattern in scene manager: {pattern_id}")
                 else:
-                    logger.warning(f"Failed to set pattern {pattern_id}")
+                    logger.warning(f"Failed to set pattern: {pattern_id}")
                     
             except ValueError:
                 logger.error(f"Invalid pattern ID: {args[0]} (must be an integer)")
@@ -600,37 +611,41 @@ class AnimationEngine:
     
     def handle_change_scene(self, address: str, *args):
         try:
-            logger.info(f"OSC received: {address} with args: {args}")
+            OSCLogger.log_received(address, list(args))
             
             if not args or len(args) == 0:
-                logger.warning("Missing scene ID parameter")
+                OSCLogger.log_validation_failed(address, "scene_id", None, "integer")
                 return
             
             try:
                 scene_id = int(args[0])
-                logger.info(f"Changing scene to: {scene_id}")
                 
-                # Validate scene ID
                 scene_info = self.scene_manager.get_current_scene_info()
                 available_scenes = scene_info.get('available_scenes', [])
                 if available_scenes and scene_id not in available_scenes:
-                    logger.warning(f"Invalid scene ID {scene_id}. Available scenes: {available_scenes}")
+                    OSCLogger.log_validation_failed(address, "scene_id", scene_id, f"one of {available_scenes}")
+                    return
                 
                 with self._lock:
-                    success = self.scene_manager.switch_scene(scene_id)
+                    dissolve_info = self.scene_manager.get_dissolve_info()
+                    use_dissolve = dissolve_info.get('enabled', False)
+                    
+                    success = self.scene_manager.switch_scene(scene_id, use_dissolve=use_dissolve)
                     if success:
                         self._notify_state_change()
                 
                 if success:
-                    logger.operation("change_scene", f"Successfully changed scene to {scene_id}")
+                    transition_type = "dissolve" if use_dissolve else "direct"
+                    AnimationLogger.log_scene_change(scene_id)
+                    OSCLogger.log_processed(address, f"success using {transition_type}")
                 else:
-                    logger.warning(f"Failed to change scene to: {scene_id}")
+                    OSCLogger.log_error(address, f"Failed to change scene to: {scene_id}")
                     
             except ValueError:
-                logger.error(f"Invalid scene ID: {args[0]} (must be an integer)")
+                OSCLogger.log_validation_failed(address, "scene_id", args[0], "integer")
                 
         except Exception as e:
-            logger.error(f"Error in handle_change_scene: {e}")
+            OSCLogger.log_error(address, f"Error in handle_change_scene: {e}")
     
     def handle_change_effect(self, address: str, *args):
         try:
@@ -643,20 +658,23 @@ class AnimationEngine:
             try:
                 effect_id = int(args[0])
                 logger.info(f"Changing effect to: {effect_id}")
-                
-                # Validate effect ID
+            
                 scene_info = self.scene_manager.get_current_scene_info()
                 available_effects = scene_info.get('available_effects', [])
                 if available_effects and effect_id not in available_effects:
-                    logger.warning(f"Invalid effect ID {effect_id}. Available effects: {available_effects}")
+                    logger.warning(f"Effect ID {effect_id} invalid. Available effects: {available_effects}")
                 
                 with self._lock:
-                    success = self.scene_manager.set_effect(effect_id)
+                    dissolve_info = self.scene_manager.get_dissolve_info()
+                    use_dissolve = dissolve_info.get('enabled', False)
+                    
+                    success = self.scene_manager.set_effect(effect_id, use_dissolve=use_dissolve)
                     if success:
                         self._notify_state_change()
                 
                 if success:
-                    logger.operation("change_effect", f"Successfully changed effect to {effect_id}")
+                    transition_type = "dissolve" if use_dissolve else "pattern/direct"
+                    logger.operation("change_effect", f"Successfully changed effect to {effect_id} using {transition_type}")
                 else:
                     logger.warning(f"Failed to change effect to: {effect_id}")
                     
@@ -677,20 +695,23 @@ class AnimationEngine:
             try:
                 palette_id = int(args[0])
                 logger.info(f"Changing palette to: {palette_id}")
-                
-                # Validate palette ID
+            
                 scene_info = self.scene_manager.get_current_scene_info()
                 available_palettes = scene_info.get('available_palettes', [])
                 if available_palettes and palette_id not in available_palettes:
-                    logger.warning(f"Invalid palette ID {palette_id}. Available palettes: {available_palettes}")
+                    logger.warning(f"Palette ID {palette_id} invalid. Available palettes: {available_palettes}")
                 
                 with self._lock:
-                    success = self.scene_manager.set_palette(palette_id)
+                    dissolve_info = self.scene_manager.get_dissolve_info()
+                    use_dissolve = dissolve_info.get('enabled', False)
+                    
+                    success = self.scene_manager.set_palette(palette_id, use_dissolve=use_dissolve)
                     if success:
                         self._notify_state_change()
                 
                 if success:
-                    logger.operation("change_palette", f"Successfully changed palette to {palette_id}")
+                    transition_type = "dissolve" if use_dissolve else "pattern/direct"
+                    logger.operation("change_palette", f"Successfully changed palette to {palette_id} using {transition_type}")
                 else:
                     logger.warning(f"Failed to change palette to: {palette_id}")
                     
@@ -710,18 +731,15 @@ class AnimationEngine:
             else:
                 palette_int_id = int(palette_id)
                 logger.info(f"Using palette_id: {palette_int_id}")
-            
-            # Validate palette_id
+        
             if palette_int_id < 0 or palette_int_id > 4:
                 logger.warning(f"Invalid palette ID {palette_int_id} (must be 0-4)")
                 return
             
-            # Validate color_id
             if color_id < 0 or color_id > 5:
                 logger.warning(f"Invalid color ID {color_id} (must be 0-5)")
                 return
             
-            # Validate RGB values
             if len(rgb) != 3:
                 logger.warning(f"Invalid RGB values: {rgb} (must have 3 values)")
                 return
@@ -760,12 +778,11 @@ class AnimationEngine:
                 dissolve_time = int(args[0])
                 logger.info(f"Setting dissolve time to: {dissolve_time}ms")
                 
-                # Validate dissolve time
                 if dissolve_time < 0:
                     logger.warning(f"Invalid dissolve time {dissolve_time} (must be >= 0)")
                     dissolve_time = 0
                 
-                if dissolve_time > 60000:  # 60 seconds max
+                if dissolve_time > 60000: 
                     logger.warning(f"Dissolve time {dissolve_time}ms is too large, capping at 60000ms")
                     dissolve_time = 60000
                 
@@ -794,7 +811,6 @@ class AnimationEngine:
                 speed_percent = int(args[0])
                 logger.info(f"Setting animation speed to: {speed_percent}%")
                 
-                # Validate speed percent (0-1023% according to specs.md)
                 if speed_percent < 0:
                     logger.warning(f"Invalid speed percent {speed_percent} (must be >= 0)")
                     speed_percent = 0
@@ -865,7 +881,6 @@ class AnimationEngine:
                 
                 logger.info(f"Configuring pattern transition: fade_in={fade_in_ms}ms, fade_out={fade_out_ms}ms, waiting={waiting_ms}ms")
                 
-                # Validate values
                 if fade_in_ms < 0:
                     logger.warning(f"Invalid fade_in_ms {fade_in_ms} (must be >= 0)")
                     fade_in_ms = 0
@@ -893,10 +908,17 @@ class AnimationEngine:
             logger.error(f"Error in handle_pattern_transition_config: {e}")
     
     def get_dissolve_info(self) -> Dict[str, Any]:
+        """Get dissolve system information"""
+        dissolve_manager_info = {
+            "manager_enabled": self.dissolve_manager.enabled,
+            "manager_current_pattern_id": self.dissolve_manager.current_pattern_id,
+            "manager_available_patterns": self.dissolve_manager.get_available_patterns(),
+            "manager_pattern_count": len(self.dissolve_manager.patterns)
+        }
+        
+        scene_dissolve_info = self.scene_manager.get_dissolve_info()
+        
         return {
-            "enabled": self.dissolve_manager.enabled,
-            "current_pattern_id": self.dissolve_manager.current_pattern_id,
-            "available_patterns": self.dissolve_manager.get_available_patterns(),
-            "current_dissolve_time": self.dissolve_time,
-            "pattern_count": len(self.dissolve_manager.patterns)
+            **dissolve_manager_info,
+            **scene_dissolve_info
         }

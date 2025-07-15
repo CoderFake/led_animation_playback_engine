@@ -14,6 +14,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 from config.settings import EngineSettings
 from src.utils.logger import get_logger, OSCLogger
+from src.utils.logging import OSCLogger as NewOSCLogger, LoggingUtils, PerformanceTracker
+from src.utils.validation import ValidationUtils
 
 logger = get_logger(__name__)
 osc_logger = OSCLogger()
@@ -78,11 +80,10 @@ class OSCHandler:
                     self.message_count += 1
                     self.last_message_time = time.time()
                 
-                logger.info(f"OSC Handler received: {osc_address} with {len(args)} parameters: {args}")
-                osc_logger.log_message(osc_address, args)
+                NewOSCLogger.log_received(osc_address, list(args))
                 
-                if not osc_address.startswith('/'):
-                    logger.warning(f"Invalid OSC address: {osc_address} (must start with /)")
+                if not ValidationUtils.validate_osc_address(osc_address):
+                    NewOSCLogger.log_validation_failed(osc_address, "address", osc_address, "valid OSC address starting with /")
                     return
                 
                 future = self.executor.submit(self._safe_handler_call, handler, osc_address, *args)
@@ -90,8 +91,7 @@ class OSCHandler:
             except Exception as e:
                 with self._lock:
                     self.error_count += 1
-                logger.error(f"Error in OSC wrapper for {osc_address}: {e}")
-                osc_logger.log_error(f"Error wrapping OSC message {osc_address}: {e}")
+                NewOSCLogger.log_error(osc_address, f"Error wrapping OSC message: {e}")
         
         return wrapper
     
@@ -100,22 +100,14 @@ class OSCHandler:
         Call a handler safely with error handling
         """
         try:
-            start_time = time.time()
-            
-            logger.debug(f"Processing OSC: {osc_address} with args: {args}")
-            handler(osc_address, *args)
-            
-            process_time = time.time() - start_time
-            if process_time > 0.1: 
-                logger.warning(f"OSC handler {osc_address} took {process_time:.3f}s to process (slow)")
-            else:
-                logger.debug(f"OSC handler {osc_address} completed in {process_time:.3f}s")
+            with PerformanceTracker("OSC", f"handler_{osc_address}") as tracker:
+                handler(osc_address, *args)
+                tracker.add_data("args_count", len(args))
                 
         except Exception as e:
             with self._lock:
                 self.error_count += 1
-            logger.error(f"Error in OSC handler {osc_address}: {e}")
-            osc_logger.log_error(f"Error in OSC handler {osc_address}: {e}")
+            NewOSCLogger.log_error(osc_address, f"Error in OSC handler: {e}")
     
     def _handle_palette_message(self, address: str, *args):
         """

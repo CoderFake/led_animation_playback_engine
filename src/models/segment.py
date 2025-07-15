@@ -7,6 +7,8 @@ from typing import List, Any, Dict
 from dataclasses import dataclass, field
 import time
 import math
+from ..utils.validation import ValidationUtils, DataSanitizer, log_validation_error
+from ..utils.logging import LoggingUtils, AnimationLogger
 
 
 @dataclass
@@ -125,8 +127,30 @@ class Segment:
         old_position = self.current_position
         self.current_position += self.move_speed * delta_time
         
+        if self.current_position < 0:
+            if len(self.move_range) >= 2:
+                min_pos, max_pos = self.move_range[0], self.move_range[1]
+                if self.is_edge_reflect:
+                    self.current_position = min_pos + abs(self.current_position)
+                    if self.move_speed < 0:
+                        self.move_speed = abs(self.move_speed)
+                        self.reset_animation_timing()
+                else:
+                    range_size = max_pos - min_pos
+                    if range_size > 0:
+                        self.current_position = max_pos + (self.current_position % range_size)
+            else:
+                self.current_position = 0.0
+                if self.move_speed < 0:
+                    self.move_speed = abs(self.move_speed)
+                    self.reset_animation_timing()
+        
         if len(self.move_range) >= 2:
             min_pos, max_pos = self.move_range[0], self.move_range[1]
+            
+            if min_pos > max_pos:
+                min_pos, max_pos = max_pos, min_pos
+                self.move_range = [min_pos, max_pos]
             
             if self.is_edge_reflect:
                 direction_changed = False
@@ -148,11 +172,15 @@ class Segment:
                 range_size = max_pos - min_pos
                 if range_size > 0:
                     if self.current_position < min_pos:
-                        self.current_position = max_pos - (min_pos - self.current_position)
+                        offset = min_pos - self.current_position
+                        self.current_position = max_pos - (offset % range_size)
                     elif self.current_position > max_pos:
-                        self.current_position = min_pos + (self.current_position - max_pos)
+                        offset = self.current_position - max_pos
+                        self.current_position = min_pos + (offset % range_size)
+                else:
+                    self.current_position = min_pos
         
-        self.current_position = max(0.0, self.current_position)
+        self.current_position = max(-1000.0, self.current_position)
     
     def get_led_colors_with_timing(self, palette: List[List[int]], current_time: float) -> List[List[int]]:
         """Get LED colors with improved time-based brightness and palette handling"""
@@ -217,31 +245,51 @@ class Segment:
             return
         
         try:
-            base_position = max(0, int(self.current_position))
-            fractional_part = max(0.0, min(1.0, self.current_position - base_position))
+            if self.current_position < 0:
+                if self.current_position < -len(segment_colors):
+                    return
+                
+                skip_count = int(abs(self.current_position))
+                if skip_count >= len(segment_colors):
+                    return
+                
+                base_position = 0
+                segment_colors = segment_colors[skip_count:]
+                fractional_part = 0.0
+            else:
+                base_position = max(0, int(self.current_position))
+                fractional_part = max(0.0, min(1.0, self.current_position - base_position))
+            
+            if not led_array or base_position >= len(led_array):
+                return
             
             for i, color in enumerate(segment_colors):
                 led_index = base_position + i
                 
-                if 0 <= led_index < len(led_array):
-                    if len(segment_colors) > 1:
-                        if i == 0:
-                            fade_factor = max(0.1, fractional_part)
-                            faded_color = [int(c * fade_factor) for c in color]
-                        elif i == len(segment_colors) - 1:
-                            fade_factor = max(0.1, 1.0 - fractional_part)
-                            faded_color = [int(c * fade_factor) for c in color]
-                        else:
-                            faded_color = color
+                if led_index < 0 or led_index >= len(led_array):
+                    continue
+                
+                if not isinstance(color, (list, tuple)) or len(color) < 3:
+                    continue
+                
+                if len(segment_colors) > 1 and fractional_part > 0:
+                    if i == 0:
+                        fade_factor = max(0.1, fractional_part)
+                        faded_color = [max(0, min(255, int(c * fade_factor))) for c in color[:3]]
+                    elif i == len(segment_colors) - 1:
+                        fade_factor = max(0.1, 1.0 - fractional_part)
+                        faded_color = [max(0, min(255, int(c * fade_factor))) for c in color[:3]]
                     else:
-                        faded_color = color
-                    
-                    for j in range(3):
-                        if j < len(faded_color):
-                            led_array[led_index][j] = min(255, led_array[led_index][j] + faded_color[j])
+                        faded_color = [max(0, min(255, int(c))) for c in color[:3]]
+                else:
+                    faded_color = [max(0, min(255, int(c))) for c in color[:3]]
+                
+                for j in range(min(3, len(faded_color), len(led_array[led_index]))):
+                    led_array[led_index][j] = min(255, led_array[led_index][j] + faded_color[j])
                         
         except Exception as e:
-            pass
+            import sys
+            print(f"Error in render_to_led_array: {e}", file=sys.stderr, flush=True)
     
     def get_total_led_count(self) -> int:
         """Get total number of LEDs this segment will generate"""
@@ -332,34 +380,85 @@ class Segment:
             return False
     
     def validate(self) -> bool:
-        """Validate segment data integrity"""
+        """Enhanced validation using centralized validation utilities"""
         try:
-            if not isinstance(self.segment_id, int):
+            if not ValidationUtils.validate_int(self.segment_id, 0, ValidationUtils.MAX_SEGMENT_ID):
+                log_validation_error(f"Invalid segment_id: {self.segment_id}", "segment_id")
                 return False
             
-            if not isinstance(self.color, list) or not self.color:
+            if not ValidationUtils.validate_color_indices(self.color):
+                log_validation_error(f"Invalid color indices: {self.color}", "color")
                 return False
             
-            if not isinstance(self.length, list) or not self.length:
+            if not ValidationUtils.validate_transparency_values(self.transparency):
+                log_validation_error(f"Invalid transparency values: {self.transparency}", "transparency")
                 return False
             
-            if not isinstance(self.move_range, list) or len(self.move_range) < 2:
+            if not ValidationUtils.validate_length_values(self.length):
+                log_validation_error(f"Invalid length values: {self.length}", "length")
                 return False
             
-            if not all(isinstance(c, (int, float)) for c in self.color):
+            if not ValidationUtils.validate_float(self.move_speed, *ValidationUtils.SPEED_RANGE):
+                log_validation_error(f"Invalid move_speed: {self.move_speed}", "move_speed")
                 return False
             
-            if not all(isinstance(l, (int, float)) for l in self.length):
+            if not ValidationUtils.validate_move_range(self.move_range):
+                log_validation_error(f"Invalid move_range: {self.move_range}", "move_range")
                 return False
             
-            if self.dimmer_time:
-                for transition in self.dimmer_time:
-                    if not isinstance(transition, list) or len(transition) != 3:
-                        return False
-                    if not all(isinstance(x, (int, float)) for x in transition):
-                        return False
+            if not ValidationUtils.validate_float(self.current_position, *ValidationUtils.POSITION_RANGE):
+                log_validation_error(f"Invalid current_position: {self.current_position}", "current_position")
+                return False
+            
+            if self.dimmer_time and not ValidationUtils.validate_dimmer_time(self.dimmer_time):
+                log_validation_error(f"Invalid dimmer_time: {self.dimmer_time}", "dimmer_time")
+                return False
+            
+            if len(self.transparency) != len(self.color) or len(self.length) != len(self.color):
+                log_validation_error("Array length mismatch between color, transparency, and length", "array_consistency")
+                return False
+        
+            total_leds = sum(self.length)
+            if total_leds > ValidationUtils.MAX_LED_COUNT:
+                log_validation_error(f"Total LED count {total_leds} exceeds maximum {ValidationUtils.MAX_LED_COUNT}", "total_leds")
+                return False
             
             return True
             
-        except Exception:
+        except Exception as e:
+            AnimationLogger.log_validation_error("segment_validation", str(e), segment_id=self.segment_id)
             return False
+    
+    def sanitize(self, led_count: int = 225):
+        """Sanitize segment data using centralized sanitization utilities"""
+        try:
+            self.segment_id = DataSanitizer.sanitize_int(self.segment_id, 0, 0, ValidationUtils.MAX_SEGMENT_ID)
+            self.color = DataSanitizer.sanitize_color_indices(self.color)
+            self.transparency = DataSanitizer.sanitize_transparency_values(self.transparency, len(self.color))
+            self.length = DataSanitizer.sanitize_length_values(self.length, len(self.color))
+            self.move_speed = DataSanitizer.sanitize_float(self.move_speed, 0.0, *ValidationUtils.SPEED_RANGE)
+            self.move_range = DataSanitizer.sanitize_move_range(self.move_range, led_count)
+            self.current_position = DataSanitizer.sanitize_float(self.current_position, 0.0, *ValidationUtils.POSITION_RANGE)
+            if not self.dimmer_time or not isinstance(self.dimmer_time, list):
+                self.dimmer_time = [[1000, 0, 100]]
+            else:
+                sanitized_dimmer = []
+                for transition in self.dimmer_time:
+                    if isinstance(transition, list) and len(transition) >= 3:
+                        duration = DataSanitizer.sanitize_int(transition[0], 100, 100)
+                        start_brightness = DataSanitizer.sanitize_int(transition[1], 0, 0, 100)
+                        end_brightness = DataSanitizer.sanitize_int(transition[2], 100, 0, 100)
+                        sanitized_dimmer.append([duration, start_brightness, end_brightness])
+                
+                self.dimmer_time = sanitized_dimmer if sanitized_dimmer else [[1000, 0, 100]]
+            
+        except Exception as e:
+            AnimationLogger.log_validation_error("segment_sanitization", str(e), segment_id=getattr(self, 'segment_id', 0))
+            self.segment_id = 0
+            self.color = [0]
+            self.transparency = [1.0]
+            self.length = [1]
+            self.move_speed = 0.0
+            self.move_range = [0.0, float(max(1, led_count - 1))]
+            self.current_position = 0.0
+            self.dimmer_time = [[1000, 0, 100]]

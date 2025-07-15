@@ -26,12 +26,145 @@ class TransitionPhase(Enum):
     COMPLETED = "completed"
 
 
+class DissolvePhase(Enum):
+    """Dissolve transition phases"""
+    PREPARING = "preparing"
+    DISSOLVING = "dissolving"
+    COMPLETED = "completed"
+
+
 @dataclass
-class PatternTransitionConfig:
-    """Configuration for pattern transitions"""
-    fade_in_ms: int = 200
-    fade_out_ms: int = 200
-    waiting_ms: int = 100
+class DissolveTransition:
+    """Active dissolve transition state with per-LED timing"""
+    is_active: bool = False
+    phase: DissolvePhase = DissolvePhase.COMPLETED
+    
+    from_scene_id: Optional[int] = None
+    from_effect_id: Optional[int] = None
+    from_palette_id: Optional[int] = None
+    to_scene_id: Optional[int] = None
+    to_effect_id: Optional[int] = None
+    to_palette_id: Optional[int] = None
+    
+    pattern_id: int = 0
+    pattern_data: List[List[int]] = None 
+    
+    start_time: float = 0.0
+    led_count: int = 225
+    
+    led_states: List[Dict[str, Any]] = None 
+    
+    def __post_init__(self):
+        """Initialize LED states"""
+        if self.led_states is None:
+            self.led_states = []
+        self._initialize_led_states()
+    
+    def _initialize_led_states(self):
+        """Initialize per-LED dissolve states"""
+        self.led_states = []
+        for i in range(self.led_count):
+            self.led_states.append({
+                'phase': 'waiting',
+                'start_time': 0.0,
+                'duration_ms': 0,
+                'progress': 0.0,
+                'from_color': [0, 0, 0],
+                'to_color': [0, 0, 0]
+            })
+    
+    def start_dissolve(self, pattern_data: List[List[int]], led_count: int):
+        """Start dissolve transition with pattern data"""
+        self.pattern_data = pattern_data
+        self.led_count = led_count
+        self.start_time = time.time()
+        self.phase = DissolvePhase.DISSOLVING
+        self.is_active = True
+        
+        self._initialize_led_states()
+        self._setup_led_timing()
+    
+    def _setup_led_timing(self):
+        """Setup timing for each LED based on pattern"""
+        if not self.pattern_data:
+            return
+        
+        for transition in self.pattern_data:
+            if len(transition) != 4:
+                continue
+                
+            delay_ms, duration_ms, start_led, end_led = transition
+            
+            start_led = max(0, min(start_led, self.led_count - 1))
+            end_led = max(start_led, min(end_led, self.led_count - 1))
+            
+            for led_idx in range(start_led, end_led + 1):
+                if led_idx < len(self.led_states):
+                    self.led_states[led_idx]['start_time'] = self.start_time + (delay_ms / 1000.0)
+                    self.led_states[led_idx]['duration_ms'] = duration_ms
+                    self.led_states[led_idx]['phase'] = 'waiting'
+    
+    def update_dissolve(self, current_time: float, from_colors: List[List[int]], to_colors: List[List[int]]):
+        """Update dissolve transition state"""
+        if not self.is_active or self.phase != DissolvePhase.DISSOLVING:
+            return
+        
+        all_completed = True
+        
+        for led_idx in range(min(len(self.led_states), len(from_colors), len(to_colors))):
+            led_state = self.led_states[led_idx]
+            
+            if led_state['phase'] == 'waiting':
+                if current_time >= led_state['start_time']:
+                    led_state['phase'] = 'dissolving'
+                    led_state['from_color'] = from_colors[led_idx][:3]
+                    led_state['to_color'] = to_colors[led_idx][:3]
+                else:
+                    all_completed = False
+            
+            elif led_state['phase'] == 'dissolving':
+                elapsed_ms = (current_time - led_state['start_time']) * 1000
+                
+                if elapsed_ms >= led_state['duration_ms']:
+                    led_state['phase'] = 'completed'
+                    led_state['progress'] = 1.0
+                else:
+                    led_state['progress'] = elapsed_ms / led_state['duration_ms'] if led_state['duration_ms'] > 0 else 1.0
+                    all_completed = False
+        
+        if all_completed:
+            self.phase = DissolvePhase.COMPLETED
+            self.is_active = False
+    
+    def get_led_output(self, from_colors: List[List[int]], to_colors: List[List[int]]) -> List[List[int]]:
+        """Get blended LED output during dissolve"""
+        if not self.is_active or self.phase != DissolvePhase.DISSOLVING:
+            return to_colors
+        
+        output = []
+        
+        for led_idx in range(min(len(self.led_states), len(from_colors), len(to_colors))):
+            led_state = self.led_states[led_idx]
+            
+            if led_state['phase'] == 'waiting':
+                # Still showing from_color
+                output.append(from_colors[led_idx][:3])
+            elif led_state['phase'] == 'dissolving':
+                # Blend from_color to to_color
+                progress = led_state['progress']
+                from_color = led_state['from_color']
+                to_color = led_state['to_color']
+                
+                blended = [
+                    int(from_color[i] * (1.0 - progress) + to_color[i] * progress)
+                    for i in range(3)
+                ]
+                output.append(blended)
+            else:  # completed
+                # Show to_color
+                output.append(to_colors[led_idx][:3])
+        
+        return output
 
 
 @dataclass  
@@ -52,6 +185,14 @@ class PatternTransition:
     
     phase_start_time: float = 0.0
     progress: float = 0.0
+
+
+@dataclass
+class PatternTransitionConfig:
+    """Configuration for pattern transitions"""
+    fade_in_ms: int = 200
+    fade_out_ms: int = 200
+    waiting_ms: int = 100
 
 
 class SceneManager:
@@ -76,17 +217,23 @@ class SceneManager:
             waiting_ms=EngineSettings.PATTERN_TRANSITION.default_waiting_ms
         )
         
+        self.dissolve_transition = DissolveTransition()
+        self.dissolve_patterns: Dict[int, List[List[int]]] = {}
+        self.current_dissolve_pattern_id = 0
+        
         self.stats = {
             'scenes_loaded': 0,
             'scene_switches': 0,
             'effect_changes': 0,
             'palette_changes': 0,
             'transitions_completed': 0,
+            'dissolve_transitions_completed': 0,
             'errors': 0
         }
         
         logger.info("SceneManager initialized with zero-origin ID system")
         logger.info(f"Pattern transitions: {'enabled' if EngineSettings.PATTERN_TRANSITION.enabled else 'disabled'}")
+        logger.info("Dissolve pattern system initialized")
     
     async def initialize(self):
         """Initialize the scene manager"""
@@ -98,30 +245,94 @@ class SceneManager:
         """Add callback for scene changes"""
         with self._lock:
             self._change_callbacks.append(callback)
-            
+    
     def _notify_changes(self):
-        """Notify all registered callbacks of changes"""
+        """Notify all registered callbacks of scene changes"""
         for callback in self._change_callbacks:
             try:
                 callback()
             except Exception as e:
                 logger.error(f"Error in change callback: {e}")
-                self.stats['errors'] += 1
     
     def set_transition_config(self, fade_in_ms: int = None, fade_out_ms: int = None, waiting_ms: int = None):
-        """Configure pattern transition timing"""
+        """Update transition configuration"""
         with self._lock:
             if fade_in_ms is not None:
-                self.transition_config.fade_in_ms = max(0, fade_in_ms)
+                self.transition_config.fade_in_ms = fade_in_ms
             if fade_out_ms is not None:
-                self.transition_config.fade_out_ms = max(0, fade_out_ms)
+                self.transition_config.fade_out_ms = fade_out_ms
             if waiting_ms is not None:
-                self.transition_config.waiting_ms = max(0, waiting_ms)
-        
-        logger.operation("transition_config", 
-                        f"fade_in={self.transition_config.fade_in_ms}ms, "
-                        f"fade_out={self.transition_config.fade_out_ms}ms, "
-                        f"waiting={self.transition_config.waiting_ms}ms")
+                self.transition_config.waiting_ms = waiting_ms
+                
+            logger.info(f"Transition config updated: fade_in={self.transition_config.fade_in_ms}ms, "
+                       f"fade_out={self.transition_config.fade_out_ms}ms, waiting={self.transition_config.waiting_ms}ms")
+    
+    def load_dissolve_patterns(self, patterns: Dict[int, List[List[int]]]) -> bool:
+        """Load dissolve patterns from animation engine"""
+        try:
+            with self._lock:
+                self.dissolve_patterns = patterns.copy()
+                logger.info(f"Loaded {len(self.dissolve_patterns)} dissolve patterns")
+                logger.info(f"Available pattern IDs: {list(self.dissolve_patterns.keys())}")
+                return True
+        except Exception as e:
+            logger.error(f"Error loading dissolve patterns: {e}")
+            return False
+    
+    def set_dissolve_pattern(self, pattern_id: int) -> bool:
+        """Set current dissolve pattern"""
+        try:
+            with self._lock:
+                if pattern_id in self.dissolve_patterns:
+                    self.current_dissolve_pattern_id = pattern_id
+                    logger.info(f"Dissolve pattern set to {pattern_id}")
+                    return True
+                else:
+                    available = list(self.dissolve_patterns.keys())
+                    logger.warning(f"Dissolve pattern {pattern_id} not found. Available: {available}")
+                    return False
+        except Exception as e:
+            logger.error(f"Error setting dissolve pattern: {e}")
+            return False
+    
+    def start_dissolve_transition(self, to_scene_id: int = None, to_effect_id: int = None, to_palette_id: int = None) -> bool:
+        """Start dissolve transition using current pattern"""
+        try:
+            with self._lock:
+                if self.current_dissolve_pattern_id not in self.dissolve_patterns:
+                    logger.warning(f"No dissolve pattern {self.current_dissolve_pattern_id} available")
+                    return False
+                
+                if not self.active_scene_id or self.active_scene_id not in self.scenes:
+                    logger.warning("Cannot start dissolve transition: no active scene")
+                    return False
+                
+                current_scene = self.scenes[self.active_scene_id]
+                pattern_data = self.dissolve_patterns[self.current_dissolve_pattern_id]
+                
+                self.dissolve_transition.from_scene_id = self.active_scene_id
+                self.dissolve_transition.from_effect_id = current_scene.current_effect_id
+                self.dissolve_transition.from_palette_id = current_scene.current_palette_id
+                
+                self.dissolve_transition.to_scene_id = to_scene_id if to_scene_id is not None else self.active_scene_id
+                self.dissolve_transition.to_effect_id = to_effect_id if to_effect_id is not None else current_scene.current_effect_id
+                self.dissolve_transition.to_palette_id = to_palette_id if to_palette_id is not None else current_scene.current_palette_id
+                
+                self.dissolve_transition.pattern_id = self.current_dissolve_pattern_id
+                
+                led_count = current_scene.led_count
+                self.dissolve_transition.start_dissolve(pattern_data, led_count)
+                
+                logger.operation("dissolve_transition_start", 
+                               f"Pattern {self.current_dissolve_pattern_id}: "
+                               f"Effect {self.dissolve_transition.from_effect_id}→{self.dissolve_transition.to_effect_id}, "
+                               f"Palette {self.dissolve_transition.from_palette_id}→{self.dissolve_transition.to_palette_id}")
+                
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error starting dissolve transition: {e}")
+            return False
     
     def start_pattern_transition(self, to_effect_id: int = None, to_palette_id: int = None):
         """Start a pattern transition between effects/palettes (zero-origin IDs)"""
@@ -214,13 +425,15 @@ class SceneManager:
     def get_led_output_with_timing(self, current_time: float) -> List[List[int]]:
         """Get LED output with time-based brightness and dynamic LED count"""
         with self._lock:
-            if not self.pattern_transition.is_active:
+            if self.dissolve_transition.is_active:
+                return self._get_dissolve_led_output_with_timing(current_time)
+            elif self.pattern_transition.is_active:
+                return self._get_transition_led_output_with_timing(current_time)
+            else:
                 if self.active_scene_id and self.active_scene_id in self.scenes:
                     scene = self.scenes[self.active_scene_id]
                     return scene.get_led_output_with_timing(current_time)
                 return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
-            
-            return self._get_transition_led_output_with_timing(current_time)
     
     def get_led_output(self) -> List[List[int]]:
         """Get current LED output (legacy method)"""
@@ -260,6 +473,68 @@ class SceneManager:
             ]
         
         return [[0, 0, 0] for _ in range(led_count)]
+    
+    def _get_dissolve_led_output_with_timing(self, current_time: float) -> List[List[int]]:
+        """Generate LED output during dissolve transitions"""
+        if not self.dissolve_transition.is_active:
+            return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
+        
+        try:
+            from_scene_id = self.dissolve_transition.from_scene_id
+            from_effect_id = self.dissolve_transition.from_effect_id
+            from_palette_id = self.dissolve_transition.from_palette_id
+            
+            to_scene_id = self.dissolve_transition.to_scene_id
+            to_effect_id = self.dissolve_transition.to_effect_id
+            to_palette_id = self.dissolve_transition.to_palette_id
+            
+            from_colors = [[0, 0, 0] for _ in range(self.dissolve_transition.led_count)]
+            if from_scene_id in self.scenes:
+                from_scene = self.scenes[from_scene_id]
+                old_effect_id = from_scene.current_effect_id
+                old_palette_id = from_scene.current_palette_id
+                from_scene.current_effect_id = from_effect_id
+                from_scene.current_palette_id = from_palette_id
+                from_colors = from_scene.get_led_output_with_timing(current_time)
+
+                from_scene.current_effect_id = old_effect_id
+                from_scene.current_palette_id = old_palette_id
+            
+            to_colors = [[0, 0, 0] for _ in range(self.dissolve_transition.led_count)]
+            if to_scene_id in self.scenes:
+                to_scene = self.scenes[to_scene_id]
+                old_effect_id = to_scene.current_effect_id
+                old_palette_id = to_scene.current_palette_id
+                to_scene.current_effect_id = to_effect_id
+                to_scene.current_palette_id = to_palette_id
+                to_colors = to_scene.get_led_output_with_timing(current_time)
+
+                to_scene.current_effect_id = old_effect_id
+                to_scene.current_palette_id = old_palette_id
+            
+            self.dissolve_transition.update_dissolve(current_time, from_colors, to_colors)
+
+            output = self.dissolve_transition.get_led_output(from_colors, to_colors)
+            
+            if not self.dissolve_transition.is_active:
+                if to_scene_id != self.active_scene_id:
+                    self.active_scene_id = to_scene_id
+                if to_scene_id in self.scenes:
+                    to_scene = self.scenes[to_scene_id]
+                    to_scene.current_effect_id = to_effect_id
+                    to_scene.current_palette_id = to_palette_id
+                
+                self.stats['dissolve_transitions_completed'] += 1
+                logger.operation("dissolve_transition_complete", 
+                               f"Scene {to_scene_id}, Effect {to_effect_id}, Palette {to_palette_id}")
+                self._notify_changes()
+            
+            return output
+            
+        except Exception as e:
+            logger.error(f"Error in dissolve LED output: {e}")
+            self.dissolve_transition.is_active = False
+            return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
     
     def load_scene_from_file(self, file_path: str) -> bool:
         """Load a single scene from JSON file"""
@@ -360,31 +635,7 @@ class SceneManager:
             self.stats['errors'] += 1
             return False
     
-    def switch_scene(self, scene_id: int) -> bool:
-        """Switch to a different scene using zero-origin ID"""
-        try:
-            with self._lock:
-                if scene_id not in self.scenes:
-                    available_scenes = list(self.scenes.keys())
-                    logger.warning(f"Scene {scene_id} not found. Available: {available_scenes}")
-                    return False
-                    
-                old_scene_id = self.active_scene_id
-                self.active_scene_id = scene_id
-                
-                self.stats['scene_switches'] += 1
-                self._notify_changes()
-                
-                logger.operation("switch_scene", f"Scene {old_scene_id}→{scene_id}")
-                self._log_scene_status()
-                return True
-                
-        except Exception as e:
-            logger.error(f"Error switching scene: {e}")
-            self.stats['errors'] += 1
-            return False
-    
-    def set_effect(self, effect_id: int) -> bool:
+    def set_effect(self, effect_id: int, use_dissolve: bool = False) -> bool:
         """Set effect for active scene using zero-origin ID"""
         try:
             with self._lock:
@@ -397,6 +648,12 @@ class SceneManager:
                     available_effects = list(range(len(scene.effects)))
                     logger.warning(f"Effect {effect_id} not found in scene {self.active_scene_id}. Available: {available_effects}")
                     return False
+                
+                if use_dissolve and self.dissolve_patterns:
+                    success = self.start_dissolve_transition(to_effect_id=effect_id)
+                    if success:
+                        self.stats['effect_changes'] += 1
+                        return True
                 
                 if EngineSettings.PATTERN_TRANSITION.enabled:
                     success = self.start_pattern_transition(to_effect_id=effect_id)
@@ -415,7 +672,7 @@ class SceneManager:
             self.stats['errors'] += 1
             return False
     
-    def set_palette(self, palette_id: int) -> bool:
+    def set_palette(self, palette_id: int, use_dissolve: bool = False) -> bool:
         """Set palette for active scene using zero-origin ID"""
         try:
             with self._lock:
@@ -428,6 +685,12 @@ class SceneManager:
                     available_palettes = list(range(len(scene.palettes)))
                     logger.warning(f"Palette {palette_id} not found in scene {self.active_scene_id}. Available: {available_palettes}")
                     return False
+                
+                if use_dissolve and self.dissolve_patterns:
+                    success = self.start_dissolve_transition(to_palette_id=palette_id)
+                    if success:
+                        self.stats['palette_changes'] += 1
+                        return True
                 
                 if EngineSettings.PATTERN_TRANSITION.enabled:
                     success = self.start_pattern_transition(to_palette_id=palette_id)
@@ -613,4 +876,46 @@ class SceneManager:
                 "available_scenes": list(self.scenes.keys()),
                 "available_effects": list(range(len(scene.effects))),
                 "available_palettes": list(range(len(scene.palettes)))
+            }
+    
+    def switch_scene(self, scene_id: int, use_dissolve: bool = False) -> bool:
+        """Switch to a different scene using zero-origin ID"""
+        try:
+            with self._lock:
+                if scene_id not in self.scenes:
+                    available_scenes = list(self.scenes.keys())
+                    logger.warning(f"Scene {scene_id} not found. Available: {available_scenes}")
+                    return False
+                
+                if use_dissolve and self.dissolve_patterns:
+                    success = self.start_dissolve_transition(to_scene_id=scene_id)
+                    if success:
+                        self.stats['scene_switches'] += 1
+                        return True
+                
+                old_scene_id = self.active_scene_id
+                self.active_scene_id = scene_id
+                
+                self.stats['scene_switches'] += 1
+                self._notify_changes()
+                
+                logger.operation("switch_scene", f"Scene {old_scene_id}→{scene_id}")
+                self._log_scene_status()
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error switching scene: {e}")
+            self.stats['errors'] += 1
+            return False
+    
+    def get_dissolve_info(self) -> Dict[str, Any]:
+        """Get dissolve system information"""
+        with self._lock:
+            return {
+                "enabled": len(self.dissolve_patterns) > 0,
+                "current_pattern_id": self.current_dissolve_pattern_id,
+                "available_patterns": list(self.dissolve_patterns.keys()),
+                "pattern_count": len(self.dissolve_patterns),
+                "transition_active": self.dissolve_transition.is_active,
+                "transition_phase": self.dissolve_transition.phase.value if self.dissolve_transition.is_active else "completed"
             }
