@@ -30,9 +30,17 @@
           "summary": "Chuyển Effect",
           "description": "Chuyển đổi effect khác theo Effect ID"
         },
+        "load_dissolve_json": {
+          "summary": "Tải Dissolve Pattern JSON",
+          "description": "Tải pattern dissolve từ file JSON"
+        },
+        "set_dissolve_pattern": {
+          "summary": "Thiết lập Dissolve Pattern",
+          "description": "Thiết lập dissolve pattern theo ID"
+        },
         "set_dissolve_time": {
-          "summary": "Thiết lập Thời gian Fade",
-          "description": "Thiết lập thời gian chuyển cảnh theo giây"
+          "summary": "Thiết lập Thời gian Dissolve",
+          "description": "Thiết lập thời gian dissolve theo milliseconds"
         },
         "set_speed_percent": {
           "summary": "Thiết lập Tỷ lệ Tốc độ",
@@ -74,9 +82,17 @@
           "summary": "Change Effect",
           "description": "Switch to different effect by Effect ID"
         },
+        "load_dissolve_json": {
+          "summary": "Load Dissolve Pattern JSON",
+          "description": "Load dissolve pattern from JSON file"
+        },
+        "set_dissolve_pattern": {
+          "summary": "Set Dissolve Pattern",
+          "description": "Set dissolve pattern by ID"
+        },
         "set_dissolve_time": {
           "summary": "Set Dissolve Time",
-          "description": "Set fade transition time in seconds"
+          "description": "Set dissolve transition time in milliseconds"
         },
         "set_speed_percent": {
           "summary": "Set Speed Percent",
@@ -118,9 +134,17 @@
           "summary": "エフェクト変更",
           "description": "エフェクトIDで異なるエフェクトに切り替える"
         },
+        "load_dissolve_json": {
+          "summary": "ディゾルブパターンJSON読み込み",
+          "description": "JSONファイルからディゾルブパターンを読み込む"
+        },
+        "set_dissolve_pattern": {
+          "summary": "ディゾルブパターン設定",
+          "description": "IDでディゾルブパターンを設定"
+        },
         "set_dissolve_time": {
-          "summary": "フェード時間設定",
-          "description": "フェード遷移時間を秒で設定"
+          "summary": "ディゾルブ時間設定",
+          "description": "ディゾルブ遷移時間をミリ秒で設定"
         },
         "set_speed_percent": {
           "summary": "速度パーセント設定",
@@ -174,6 +198,44 @@
       "validation_error": "検証エラー",
       "performance_test": "パフォーマンステスト",
       "endpoint_test": "エンドポイントテスト"
+    }
+  },
+  "response_messages": {
+    "vi": {
+      "scene_loaded": "Đã tải scene từ: {file_path}",
+      "scene_changed": "Đã thay đổi scene thành: {scene_id}",
+      "palette_changed": "Đã thay đổi palette thành: {palette_id}",
+      "palette_color_updated": "Đã cập nhật palette {palette_id} màu {color_id} thành RGB({r},{g},{b})",
+      "effect_changed": "Effect đã thay đổi thành: {effect_id}",
+      "dissolve_pattern_loaded": "Đã tải dissolve pattern từ: {file_path}",
+      "dissolve_pattern_set": "Đã đặt dissolve pattern thành: {pattern_id}",
+      "dissolve_time_set": "Đã đặt dissolve time thành: {time_ms}ms",
+      "speed_percent_set": "Đã đặt tốc độ animation thành: {percent}% (phạm vi: 0-1023%)",
+      "master_brightness_set": "Đã đặt master brightness thành: {brightness} (phạm vi: 0-255)"
+    },
+    "en": {
+      "scene_loaded": "Scene loaded from: {file_path}",
+      "scene_changed": "Scene changed to: {scene_id}",
+      "palette_changed": "Palette changed to: {palette_id}",
+      "palette_color_updated": "Updated palette {palette_id} color {color_id} to RGB({r},{g},{b})",
+      "effect_changed": "Effect changed to: {effect_id}",
+      "dissolve_pattern_loaded": "Dissolve pattern loaded from: {file_path}",
+      "dissolve_pattern_set": "Dissolve pattern set to: {pattern_id}",
+      "dissolve_time_set": "Dissolve time set to: {time_ms}ms",
+      "speed_percent_set": "Animation speed set to: {percent}% (range: 0-1023%)",
+      "master_brightness_set": "Master brightness set to: {brightness} (range: 0-255)"
+    },
+    "ja": {
+      "scene_loaded": "シーンを読み込みました: {file_path}",
+      "scene_changed": "シーンを変更しました: {scene_id}",
+      "palette_changed": "パレットを変更しました: {palette_id}",
+      "palette_color_updated": "パレット {palette_id} の色 {color_id} をRGB({r},{g},{b})に更新しました",
+      "effect_changed": "エフェクトを変更しました: {effect_id}",
+      "dissolve_pattern_loaded": "ディゾルブパターンを読み込みました: {file_path}",
+      "dissolve_pattern_set": "ディゾルブパターンを設定しました: {pattern_id}",
+      "dissolve_time_set": "ディゾルブ時間を設定しました: {time_ms}ms",
+      "speed_percent_set": "アニメーション速度を設定しました: {percent}% (範囲: 0-1023%)",
+      "master_brightness_set": "マスター輝度を設定しました: {brightness} (範囲: 0-255)"
     }
   },
   "error_messages": {

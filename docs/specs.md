@@ -271,7 +271,7 @@ def _update_frame(self, delta_time: float):
     # Send to LED output
     self.led_output.send_led_data(led_colors)
 
-# In scene_manager.py - Add new method
+# In scene_manager.py 
 def get_led_output_with_timing(self, current_time: float) -> List[List[int]]:
     """Get LED output with time-based brightness and fractional positioning"""
     with self._lock:

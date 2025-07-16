@@ -1,7 +1,7 @@
 """
 LED Control Endpoints
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from dataclass.api_models import (
     ChangeEffectRequest, DissolveTimeRequest, 
     SpeedPercentRequest, MasterBrightnessRequest, OSCApiResponse,
@@ -9,13 +9,14 @@ from dataclass.api_models import (
 )
 from dataclass.osc_models import OSCRequest, OSCMessageType, OSCDataType
 from services.osc_client import OSCClientContext, UDPOSCClient
+from services.language_service import language_service, get_request_language
 
 router = APIRouter()
 
 osc_client = OSCClientContext(UDPOSCClient())
 
 @router.post("/change_effect", response_model=OSCApiResponse)
-async def change_effect(request: ChangeEffectRequest):
+async def change_effect(request: ChangeEffectRequest, http_request: Request):
     try:
         osc_request = OSCRequest()
         osc_request.set_address("/change_effect")
@@ -24,7 +25,13 @@ async def change_effect(request: ChangeEffectRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Effect đã thay đổi thành: {request.effect_id}"
+        # Get localized message
+        lang = get_request_language(http_request)
+        log_message = language_service.get_response_message(
+            "effect_changed", 
+            language=lang,
+            effect_id=request.effect_id
+        )
         
         return OSCApiResponse(
             success=response.is_success(),
@@ -38,7 +45,7 @@ async def change_effect(request: ChangeEffectRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/load_dissolve_json", response_model=OSCApiResponse)
-async def load_dissolve_json(request: LoadDissolveJsonRequest):
+async def load_dissolve_json(request: LoadDissolveJsonRequest, http_request: Request):
     """
     Load a dissolve pattern from a JSON file.
     """
@@ -50,7 +57,13 @@ async def load_dissolve_json(request: LoadDissolveJsonRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Đã tải dissolve pattern từ: {request.file_path}"
+        # Get localized message
+        lang = get_request_language(http_request)
+        log_message = language_service.get_response_message(
+            "dissolve_pattern_loaded", 
+            language=lang,
+            file_path=request.file_path
+        )
         
         return OSCApiResponse(
             success=response.is_success(),
@@ -64,7 +77,7 @@ async def load_dissolve_json(request: LoadDissolveJsonRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/set_dissolve_pattern", response_model=OSCApiResponse)
-async def set_dissolve_pattern(request: SetDissolvePatternRequest):
+async def set_dissolve_pattern(request: SetDissolvePatternRequest, http_request: Request):
     """
     Set dissolve pattern by ID (0-origin).
     """
@@ -76,7 +89,13 @@ async def set_dissolve_pattern(request: SetDissolvePatternRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Đã đặt dissolve pattern thành: {request.pattern_id}"
+        # Get localized message
+        lang = get_request_language(http_request)
+        log_message = language_service.get_response_message(
+            "dissolve_pattern_set", 
+            language=lang,
+            pattern_id=request.pattern_id
+        )
         
         return OSCApiResponse(
             success=response.is_success(),
@@ -90,7 +109,7 @@ async def set_dissolve_pattern(request: SetDissolvePatternRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/set_dissolve_time", response_model=OSCApiResponse)
-async def set_dissolve_time(request: DissolveTimeRequest):
+async def set_dissolve_time(request: DissolveTimeRequest, http_request: Request):
     try:
         osc_request = OSCRequest()
         osc_request.set_address("/set_dissolve_time")
@@ -99,7 +118,13 @@ async def set_dissolve_time(request: DissolveTimeRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Đã đặt dissolve time thành: {request.time_ms}ms"
+        # Get localized message
+        lang = get_request_language(http_request)
+        log_message = language_service.get_response_message(
+            "dissolve_time_set", 
+            language=lang,
+            time_ms=request.time_ms
+        )
         
         return OSCApiResponse(
             success=response.is_success(),
@@ -113,8 +138,7 @@ async def set_dissolve_time(request: DissolveTimeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/set_speed_percent", response_model=OSCApiResponse)
-async def set_speed_percent(request: SpeedPercentRequest):
-   
+async def set_speed_percent(request: SpeedPercentRequest, http_request: Request):
     try:
         osc_request = OSCRequest()
         osc_request.set_address("/set_speed_percent")
@@ -123,7 +147,13 @@ async def set_speed_percent(request: SpeedPercentRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Đã đặt tốc độ animation thành: {request.percent}% (phạm vi: 0-1023%)"
+        # Get localized message
+        lang = get_request_language(http_request)
+        log_message = language_service.get_response_message(
+            "speed_percent_set", 
+            language=lang,
+            percent=request.percent
+        )
         
         return OSCApiResponse(
             success=response.is_success(),
@@ -137,7 +167,7 @@ async def set_speed_percent(request: SpeedPercentRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/master_brightness", response_model=OSCApiResponse)
-async def master_brightness(request: MasterBrightnessRequest):
+async def master_brightness(request: MasterBrightnessRequest, http_request: Request):
     try:
         osc_request = OSCRequest()
         osc_request.set_address("/master_brightness")
@@ -146,7 +176,13 @@ async def master_brightness(request: MasterBrightnessRequest):
         
         response = await osc_client.send_message(osc_request)
         
-        log_message = f"Đã đặt master brightness thành: {request.brightness} (phạm vi: 0-255)"
+        # Get localized message
+        lang = get_request_language(http_request)
+        log_message = language_service.get_response_message(
+            "master_brightness_set", 
+            language=lang,
+            brightness=request.brightness
+        )
         
         return OSCApiResponse(
             success=response.is_success(),
