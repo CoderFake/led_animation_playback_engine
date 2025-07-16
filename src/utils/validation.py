@@ -6,6 +6,12 @@ Eliminates duplicate validation code and provides consistent error handling
 from typing import Any, List, Union, Tuple, Optional, Dict
 from .logger import setup_logger
 
+try:
+    from config.settings import EngineSettings
+    settings = EngineSettings
+except ImportError:
+    settings = None
+
 class ValidationError(Exception):
     """Custom exception for validation errors"""
     pass
@@ -15,10 +21,51 @@ class ValidationUtils:
     
     PALETTE_INDEX_RANGE = (0, 5)           # 6 colors per palette (0-5)
     TRANSPARENCY_RANGE = (0.0, 1.0)        # Standard transparency range
-    BRIGHTNESS_RANGE = (0, 255)            # Master brightness range (updated from 0-100)
-    SPEED_RANGE = (0, 1023)                # Speed range 0-1023% as per specs
+    
+    @staticmethod
+    def get_brightness_range():
+        """Get brightness range from settings"""
+        return (0, 255)  
+    
+    @staticmethod
+    def get_speed_range():
+        """Get speed range from settings"""
+        if settings:
+            return (0, settings.ANIMATION.speed_range_max)
+        return (0, 1023)
+    
+    @staticmethod
+    def get_default_led_count_range():
+        """Get default LED count range from settings (for config validation)"""
+        if settings:
+            return (1, 10000000)
+        return (1, 10000000)
+    
+    @staticmethod
+    def get_fps_range():
+        """Get FPS range from settings"""
+        if settings:
+            return (1, 240)  # Từ AnimationConfig validation
+        return (1, 240)
+    
+    # Flexible validation - không bị cứng nhắc với config
+    @staticmethod
+    def validate_led_count_flexible(led_count: int, max_override: int = None) -> bool:
+        """Validate LED count với khả năng override max từ scene JSON"""
+        if not isinstance(led_count, int) or led_count < 1:
+            return False
+        
+        # Nếu có override từ scene, dùng giá trị đó
+        if max_override is not None:
+            return led_count <= max_override
+        
+        # Nếu không, dùng giá trị từ settings
+        default_range = ValidationUtils.get_default_led_count_range()
+        return led_count <= default_range[1]
+    
+    BRIGHTNESS_RANGE = get_brightness_range.__func__()
+    SPEED_RANGE = get_speed_range.__func__()
     POSITION_RANGE = (-1000000, 1000000)   # Support for millions of LEDs
-    MAX_LED_COUNT = 10000000               # Support up to 10 million LEDs
     MAX_SEGMENT_ID = 99999                 # Increased segment limit
     MAX_SCENE_ID = 9999                    # Reasonable scene limit
     MAX_EFFECT_ID = 9999                   # Reasonable effect limit
@@ -82,14 +129,15 @@ class ValidationUtils:
     
     @staticmethod
     def validate_length_values(lengths: List[int]) -> bool:
-        """Validate length values (positive integers) - no upper limit for LED count"""
+        """Validate length values (positive integers) - flexible upper limit"""
         if not ValidationUtils.validate_list(lengths, int, min_length=1):
             return False
+        # Chỉ kiểm tra positive, không giới hạn cứng upper bound
         return all(ValidationUtils.validate_int(l, 0) for l in lengths)
     
     @staticmethod
-    def validate_move_range(move_range: List[float]) -> bool:
-        """Validate move range (2 float values) - support large LED arrays"""
+    def validate_move_range(move_range: List[float], led_count_context: int = None) -> bool:
+        """Validate move range với context từ scene hiện tại"""
         if not ValidationUtils.validate_list(move_range, (int, float), min_length=2, max_length=2):
             return False
         min_pos, max_pos = move_range[0], move_range[1]
@@ -97,9 +145,14 @@ class ValidationUtils:
             return False
         if min_pos < 0 or max_pos < 0:
             return False
-        if min_pos > ValidationUtils.MAX_LED_COUNT or max_pos > ValidationUtils.MAX_LED_COUNT:
-            return False
-        return True
+        
+        # Nếu có context từ scene, dùng giá trị đó
+        if led_count_context is not None:
+            return max_pos <= led_count_context
+        
+        # Nếu không, dùng giá trị reasonable default
+        default_range = ValidationUtils.get_default_led_count_range()
+        return max_pos <= default_range[1]
     
     @staticmethod
     def validate_dimmer_time(dimmer_time: List[List[float]]) -> bool:
@@ -155,24 +208,27 @@ class ValidationUtils:
         return ValidationUtils.validate_int(palette_id, 0, ValidationUtils.MAX_PALETTE_ID)
     
     @staticmethod
-    def validate_led_count(led_count: int) -> bool:
-        """Validate LED count - support millions of LEDs"""
-        return ValidationUtils.validate_int(led_count, 1, ValidationUtils.MAX_LED_COUNT)
+    def validate_led_count(led_count: int, max_override: int = None) -> bool:
+        """Validate LED count với flexible approach"""
+        return ValidationUtils.validate_led_count_flexible(led_count, max_override)
     
     @staticmethod
     def validate_fps(fps: int) -> bool:
         """Validate FPS value - configurable as per specs"""
-        return ValidationUtils.validate_int(fps, 1, 240) 
+        fps_range = ValidationUtils.get_fps_range()
+        return ValidationUtils.validate_int(fps, fps_range[0], fps_range[1])
     
     @staticmethod
     def validate_speed_percent(speed_percent: int) -> bool:
         """Validate speed percentage (0-1023% as per specs)"""
-        return ValidationUtils.validate_int(speed_percent, *ValidationUtils.SPEED_RANGE)
+        speed_range = ValidationUtils.get_speed_range()
+        return ValidationUtils.validate_int(speed_percent, speed_range[0], speed_range[1])
     
     @staticmethod
     def validate_master_brightness(brightness: int) -> bool:
         """Validate master brightness (0-255 as per specs)"""
-        return ValidationUtils.validate_int(brightness, *ValidationUtils.BRIGHTNESS_RANGE)
+        brightness_range = ValidationUtils.get_brightness_range()
+        return ValidationUtils.validate_int(brightness, brightness_range[0], brightness_range[1])
 
 class DataSanitizer:
     """Centralized data sanitization utilities"""
@@ -246,24 +302,23 @@ class DataSanitizer:
         sanitized = []
         for t in transparencies:
             sanitized.append(DataSanitizer.sanitize_float(
-                t, 1.0, *ValidationUtils.TRANSPARENCY_RANGE
+                t, 0.0, *ValidationUtils.TRANSPARENCY_RANGE
             ))
         
-        # Adjust length to match target
         while len(sanitized) < target_length:
-            sanitized.append(1.0)
+            sanitized.append(0.0)
         
         return sanitized[:target_length]
     
     @staticmethod
     def sanitize_length_values(lengths: List[int], target_length: int) -> List[int]:
-        """Sanitize length values to match target length - support large LED counts"""
+        """Sanitize length values - flexible upper limit"""
         if not isinstance(lengths, list):
             return [1] * target_length
         
         sanitized = []
         for l in lengths:
-            sanitized.append(DataSanitizer.sanitize_int(l, 1, 0))  # No upper limit
+            sanitized.append(DataSanitizer.sanitize_int(l, 1, 0))
         
         while len(sanitized) < target_length:
             sanitized.append(1)
@@ -272,9 +327,9 @@ class DataSanitizer:
     
     @staticmethod
     def sanitize_move_range(move_range: List[float], led_count: int = 225) -> List[float]:
-        """Sanitize move range to valid format - support large LED arrays"""
+        """Sanitize move range - sử dụng led_count thực tế từ scene"""
         if not isinstance(move_range, list) or len(move_range) < 2:
-            return [0.0, float(max(1, led_count - 1))]  # Default to full LED range
+            return [0.0, float(max(1, led_count - 1))]
         
         min_pos = DataSanitizer.sanitize_float(move_range[0], 0.0, 0.0, float(led_count - 1))
         max_pos = DataSanitizer.sanitize_float(move_range[1], float(led_count - 1), 0.0, float(led_count - 1))
@@ -286,19 +341,28 @@ class DataSanitizer:
         return [min_pos, max_pos]
     
     @staticmethod
-    def sanitize_led_count(led_count: int) -> int:
-        """Sanitize LED count - support millions of LEDs"""
-        return DataSanitizer.sanitize_int(led_count, 225, 1, ValidationUtils.MAX_LED_COUNT)
+    def sanitize_led_count(led_count: int, max_override: int = None) -> int:
+        """Sanitize LED count với flexible approach"""
+        default_range = ValidationUtils.get_default_led_count_range()
+        
+        # Nếu có override từ scene, dùng giá trị đó
+        if max_override is not None:
+            return DataSanitizer.sanitize_int(led_count, 225, default_range[0], max_override)
+        
+        # Nếu không, dùng default range
+        return DataSanitizer.sanitize_int(led_count, 225, default_range[0], default_range[1])
     
     @staticmethod
     def sanitize_speed_percent(speed_percent: int) -> int:
         """Sanitize speed percentage (0-1023%)"""
-        return DataSanitizer.sanitize_int(speed_percent, 100, *ValidationUtils.SPEED_RANGE)
+        speed_range = ValidationUtils.get_speed_range()
+        return DataSanitizer.sanitize_int(speed_percent, 100, speed_range[0], speed_range[1])
     
     @staticmethod
     def sanitize_master_brightness(brightness: int) -> int:
         """Sanitize master brightness (0-255)"""
-        return DataSanitizer.sanitize_int(brightness, 255, *ValidationUtils.BRIGHTNESS_RANGE)
+        brightness_range = ValidationUtils.get_brightness_range()
+        return DataSanitizer.sanitize_int(brightness, 255, brightness_range[0], brightness_range[1])
 
 def log_validation_error(error_msg: str, field_name: str = None):
     """Log validation error using the existing logger system"""

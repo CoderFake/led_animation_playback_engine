@@ -6,7 +6,7 @@ Provides comprehensive configuration for all engine components
 import json
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List
 from pydantic import BaseModel, Field, validator
 
 
@@ -52,8 +52,8 @@ class AnimationConfig(BaseModel):
     """
     Animation engine configuration with expanded features
     """
-    target_fps: int = Field(default=60, description="Target animation FPS", ge=1, le=120)
-    led_count: int = Field(default=225, description="Default LED count (dynamic per scene)", ge=1, le=10000)
+    target_fps: int = Field(default=60, description="Target animation FPS", ge=1, le=240)
+    led_count: int = Field(default=225, description="Default LED count (dynamic per scene)", ge=1, le=10000000)
     master_brightness: int = Field(default=255, description="Master brightness level", ge=0, le=255)
     default_dissolve_time: int = Field(default=1000, description="Default dissolve time in ms", ge=0)
     
@@ -200,7 +200,6 @@ class EngineSettings:
         self.DEFAULT_SCENE_FILE = "src/data/jsons/multiple_scenes.json"
 
         self.ensure_directories()
-        self._log_new_features()
     
     def ensure_directories(self):
         """Ensure required directories exist"""
@@ -211,17 +210,6 @@ class EngineSettings:
             
         except Exception as e:
             print(f"Error creating directories: {e}")
-    
-    def _log_new_features(self):
-        """Log information about new features and changes"""
-        if self.LOGGING.id_system_logging:
-            print("Engine Configuration:")
-            print(f"  - Zero-origin ID system: Enabled")
-            print(f"  - Expanded speed range: 0-{self.ANIMATION.speed_range_max}%")
-            print(f"  - Fractional positioning: {self.ANIMATION.fractional_positioning}")
-            print(f"  - Time-based dimmer: {self.ANIMATION.time_based_dimmer}")
-            print(f"  - Master brightness: {self.ANIMATION.master_brightness}/255")
-            print(f"  - Minimum brightness: {self.ANIMATION.minimum_brightness}")
     
     def get_led_destinations(self) -> List[LEDDestination]:
         """Get validated LED destinations"""

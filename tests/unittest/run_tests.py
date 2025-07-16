@@ -1,136 +1,186 @@
 """
-Test runner for LED Engine Unit Tests
+Test runner for LED Animation Engine unit tests
+Runs all unit tests with proper reporting and coverage
 """
-import subprocess
+
+import unittest
 import sys
 import os
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent.parent
-sys.path.append(str(project_root))
+sys.path.insert(0, str(project_root))
+
+from tests.unittest.test_color_utils import TestColorUtils
+from tests.unittest.test_segment import TestSegment
+from tests.unittest.test_dissolve_pattern import TestDissolveTransition
 
 
-def run_all_tests():
-    """Run all unit tests"""
-    print("=== Run all Unit Tests ===")
+class TestRunner:
+    """Test runner with enhanced reporting"""
     
-    test_dir = Path(__file__).parent
-    result = subprocess.run([
-        sys.executable, "-m", "pytest", 
-        str(test_dir),
-        "-v",
-        "--tb=short",
-        "--color=yes"
-    ], capture_output=False)
+    def __init__(self):
+        """Initialize test runner with all test classes"""
+        self.test_classes = [
+            TestColorUtils,
+            TestSegment,
+            TestDissolveTransition
+        ]
+        self.test_suite = unittest.TestSuite()
+        self.test_results = []
+        
+    def add_test_class(self, test_class):
+        """Add a test class to the suite"""
+        tests = unittest.TestLoader().loadTestsFromTestCase(test_class)
+        self.test_suite.addTests(tests)
+        
+    def run_tests(self, verbosity=2):
+        """Run all tests with specified verbosity"""
+        for test_class in self.test_classes:
+            self.add_test_class(test_class)
+            
+        print("=" * 70)
+        print("LED Animation Engine - Unit Test Suite")
+        print("=" * 70)
+        
+        runner = unittest.TextTestRunner(
+            verbosity=verbosity,
+            stream=sys.stdout,
+            descriptions=True,
+            failfast=False
+        )
+        
+        result = runner.run(self.test_suite)
+       
+        self._print_summary(result)
+        
+        return result.wasSuccessful()
     
-    return result.returncode == 0
-
-
-def run_specific_test(test_file):
-    """Run specific test"""
-    print(f"=== Run test: {test_file} ===")
+    def _print_summary(self, result):
+        """Print test summary"""
+        print("\n" + "=" * 70)
+        print("TEST SUMMARY")
+        print("=" * 70)
+        
+        total_tests = result.testsRun
+        failures = len(result.failures)
+        errors = len(result.errors)
+        skipped = len(result.skipped) if hasattr(result, 'skipped') else 0
+        
+        print(f"Total tests run: {total_tests}")
+        print(f"Successes: {total_tests - failures - errors - skipped}")
+        print(f"Failures: {failures}")
+        print(f"Errors: {errors}")
+        print(f"Skipped: {skipped}")
+        
+        if result.wasSuccessful():
+            print("\n ALL TESTS PASSED!")
+        else:
+            print("\n SOME TESTS FAILED!")
+            
+        if result.failures:
+            print("\nFAILURES:")
+            print("-" * 40)
+            for test, traceback in result.failures:
+                print(f"FAIL: {test}")
+                print(traceback)
+                
+        if result.errors:
+            print("\nERRORS:")
+            print("-" * 40)
+            for test, traceback in result.errors:
+                print(f"ERROR: {test}")
+                print(traceback)
     
-    test_dir = Path(__file__).parent
-    test_path = test_dir / test_file
-    
-    if not test_path.exists():
-        print(f"ERROR: Test file does not exist: {test_path}")
-        return False
-    
-    result = subprocess.run([
-        sys.executable, "-m", "pytest", 
-        str(test_path),
-        "-v",
-        "--tb=short",
-        "--color=yes"
-    ], capture_output=False)
-    
-    return result.returncode == 0
-
-
-def run_coverage():
-    """Run tests with coverage report"""
-    print("=== Run tests with Coverage ===")
-    
-    test_dir = Path(__file__).parent
-    
-    try:
-        import coverage
-    except ImportError:
-        print("Installing coverage...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "coverage"])
-    
-    result = subprocess.run([
-        sys.executable, "-m", "pytest", 
-        str(test_dir),
-        "--cov=src",
-        "--cov-report=html",
-        "--cov-report=term-missing",
-        "-v"
-    ], capture_output=False)
-    
-    if result.returncode == 0:
-        print("\n=== Coverage Report ===")
-        print(f"HTML Coverage Report: {project_root}/htmlcov/index.html")
-    
-    return result.returncode == 0
-
-
-def list_available_tests():
-    """List all test files"""
-    print("=== List of Unit Tests ===")
-    
-    test_dir = Path(__file__).parent
-    test_files = sorted(test_dir.glob("test_*.py"))
-    
-    for i, test_file in enumerate(test_files, 1):
-        print(f"{i}. {test_file.name}")
-    
-    return test_files
+    def run_specific_test(self, test_class_name, test_method_name=None):
+        """Run a specific test class or method"""
+        if test_class_name == "ColorUtils":
+            test_class = TestColorUtils
+        elif test_class_name == "Segment":
+            test_class = TestSegment
+        else:
+            print(f"Unknown test class: {test_class_name}")
+            return False
+            
+        if test_method_name:
+            suite = unittest.TestSuite()
+            suite.addTest(test_class(test_method_name))
+        else:
+            suite = unittest.TestLoader().loadTestsFromTestCase(test_class)
+        
+        runner = unittest.TextTestRunner(verbosity=2)
+        result = runner.run(suite)
+        
+        return result.wasSuccessful()
 
 
 def main():
-    """Main function"""
-    print("LED Engine Unit Test Runner")
-    print("=" * 50)
+    """Main entry point"""
+    runner = TestRunner()
     
     if len(sys.argv) > 1:
-        command = sys.argv[1]
-        
-        if command == "all":
-            success = run_all_tests()
-        elif command == "coverage":
-            success = run_coverage()
-        elif command == "list":
-            list_available_tests()
+        if sys.argv[1] == "--help" or sys.argv[1] == "-h":
+            print_help()
             return
-        elif command.startswith("test_"):
-            success = run_specific_test(command)
-        else:
-            print(f"Unknown command: {command}")
-            print_usage()
+        elif sys.argv[1] == "--list":
+            list_tests()
             return
-    else:
-        print_usage()
-        return
+        elif sys.argv[1] == "--test":
+            if len(sys.argv) < 3:
+                print("Error: --test requires a test class name")
+                return
+            test_class = sys.argv[2]
+            test_method = sys.argv[3] if len(sys.argv) > 3 else None
+            success = runner.run_specific_test(test_class, test_method)
+            sys.exit(0 if success else 1)
     
-    if 'success' in locals():
-        sys.exit(0 if success else 1)
+    runner.add_test_class(TestColorUtils)
+    runner.add_test_class(TestSegment)
+    
+    success = runner.run_tests()
+    
+    sys.exit(0 if success else 1)
 
 
-def print_usage():
-    """Print usage instructions"""
-    print("\nUsage:")
-    print("  python run_tests.py all              - Run all tests")
-    print("  python run_tests.py coverage         - Run tests with coverage")
-    print("  python run_tests.py list             - List all test files")
-    print("  python run_tests.py test_*.py        - Run specific test")
-    print("\nExamples:")
-    print("  python run_tests.py test_animation_engine.py")
-    print("  python run_tests.py test_osc_handler.py")
-    print("  python run_tests.py test_scene_manager.py")
-    print("  python run_tests.py test_monitor_components.py")
+def print_help():
+    """Print help message"""
+    print("""
+LED Animation Engine Test Runner
+
+Usage:
+    python run_tests.py                    # Run all tests
+    python run_tests.py --help             # Show this help
+    python run_tests.py --list             # List available tests
+    python run_tests.py --test <class>     # Run specific test class
+    python run_tests.py --test <class> <method>  # Run specific test method
+
+Available test classes:
+    ColorUtils      # Test ColorUtils class
+    Segment         # Test Segment class
+
+Examples:
+    python run_tests.py --test ColorUtils
+    python run_tests.py --test Segment test_transparency_bug_fix
+    """)
 
 
-if __name__ == "__main__":
+def list_tests():
+    """List all available tests"""
+    print("Available test classes and methods:")
+    print()
+    
+    print("TestColorUtils:")
+    for method_name in dir(TestColorUtils):
+        if method_name.startswith('test_'):
+            print(f"  - {method_name}")
+    
+    print()
+    
+    print("TestSegment:")
+    for method_name in dir(TestSegment):
+        if method_name.startswith('test_'):
+            print(f"  - {method_name}")
+
+
+if __name__ == '__main__':
     main() 

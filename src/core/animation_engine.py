@@ -20,83 +20,11 @@ from src.utils.logger import ComponentLogger
 from src.utils.performance import PerformanceMonitor, ProfilerManager
 from src.utils.logging import AnimationLogger, OSCLogger, LoggingUtils, PerformanceTracker
 from src.utils.validation import ValidationUtils
+from src.utils.color_utils import ColorUtils
+from src.models.common import EngineStats, DissolvePatternManager
 
 logger = ComponentLogger("AnimationEngine")
 
-
-@dataclass
-class EngineStats:
-    target_fps: int = 60
-    actual_fps: float = 0.0
-    frame_count: int = 0
-    active_leds: int = 0
-    total_leds: int = 225
-    animation_time: float = 0.0
-    master_brightness: int = 255
-    speed_percent: int = 100  
-    dissolve_time: int = 1000
-    memory_usage_mb: float = 0.0
-    cpu_usage_percent: float = 0.0
-    animation_running: bool = False
-
-
-class DissolvePatternManager:
-    
-    def __init__(self):
-        self.patterns: Dict[int, List[List[int]]] = {}
-        self.current_pattern_id: int = 0
-        self.enabled: bool = True
-        
-    def load_patterns_from_file(self, file_path: str) -> bool:
-        try:
-            file_path_obj = Path(file_path)
-            if not file_path_obj.exists():
-                logger.error(f"Dissolve pattern file not found: {file_path}")
-                return False
-            
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            if "dissolve_patterns" not in data:
-                logger.error(f"File {file_path} missing 'dissolve_patterns' key")
-                return False
-            
-            patterns_data = data["dissolve_patterns"]
-            self.patterns.clear()
-            
-            for pattern_id_str, pattern_data in patterns_data.items():
-                try:
-                    pattern_id = int(pattern_id_str)
-                    if isinstance(pattern_data, list):
-                        self.patterns[pattern_id] = pattern_data
-                        logger.debug(f"Loaded dissolve pattern {pattern_id}: {len(pattern_data)} transitions")
-                    else:
-                        logger.warning(f"Invalid pattern data format for pattern {pattern_id}")
-                except ValueError:
-                    logger.warning(f"Invalid pattern ID: {pattern_id_str}")
-                    continue
-            
-            logger.info(f"Loaded {len(self.patterns)} dissolve patterns from {file_path}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error loading dissolve patterns: {e}")
-            return False
-    
-    def get_pattern(self, pattern_id: int) -> Optional[List[List[int]]]:
-        return self.patterns.get(pattern_id)
-    
-    def set_current_pattern(self, pattern_id: int) -> bool:
-        if pattern_id in self.patterns:
-            self.current_pattern_id = pattern_id
-            logger.info(f"Current dissolve pattern set to {pattern_id}")
-            return True
-        else:
-            logger.warning(f"Dissolve pattern {pattern_id} not found")
-            return False
-    
-    def get_available_patterns(self) -> List[int]:
-        return list(self.patterns.keys())
 
 class AnimationEngine:
     
@@ -402,6 +330,22 @@ class AnimationEngine:
             
             with self._lock:
                 self.stats.actual_fps = average_fps
+                
+                if self.animation_running:
+                    led_colors = self.scene_manager.get_led_output_with_timing(time.time())
+                  
+                    raw_active = ColorUtils.count_active_leds(led_colors)
+                    
+                    # Apply master brightness using ColorUtils
+                    led_colors = ColorUtils.apply_colors_to_array(led_colors, self.master_brightness)
+                    
+                    active_leds = ColorUtils.count_active_leds(led_colors)
+                    self.stats.active_leds = active_leds
+                    
+                    if raw_active != active_leds:
+                        logger.debug(f"Active LEDs changed: {raw_active} -> {active_leds} (brightness: {self.master_brightness})")
+                else:
+                    self.stats.active_leds = 0
             
             efficiency = (average_fps / self.target_fps) * 100
             
@@ -420,7 +364,11 @@ class AnimationEngine:
             
             if self.animation_running:
                 led_colors = self.scene_manager.get_led_output_with_timing(time.time())
-                active_leds = sum(1 for color in led_colors if any(c > 0 for c in color[:3]))
+                
+                # Apply master brightness using ColorUtils
+                led_colors = ColorUtils.apply_colors_to_array(led_colors, self.master_brightness)
+                
+                active_leds = ColorUtils.count_active_leds(led_colors)
                 stats_copy.active_leds = active_leds
             else:
                 stats_copy.active_leds = 0
@@ -450,12 +398,8 @@ class AnimationEngine:
             led_start = time.perf_counter()
             led_colors = self.scene_manager.get_led_output_with_timing(current_time)
             
-            if master_brightness < 255:
-                brightness_factor = master_brightness / 255.0
-                led_colors = [
-                    [int(c * brightness_factor) for c in color]
-                    for color in led_colors
-                ]
+            # Apply master brightness using ColorUtils
+            led_colors = ColorUtils.apply_colors_to_array(led_colors, master_brightness)
             
             outpu_start = time.perf_counter()
             self.led_output.send_led_data(led_colors)
@@ -484,12 +428,8 @@ class AnimationEngine:
             
         led_colors = self.scene_manager.get_led_output_with_timing(time.time())
         
-        if self.master_brightness < 255:
-            brightness_factor = self.master_brightness / 255.0
-            led_colors = [
-                [int(c * brightness_factor) for c in color]
-                for color in led_colors
-            ]
+        # Apply master brightness using ColorUtils
+        led_colors = ColorUtils.apply_colors_to_array(led_colors, self.master_brightness)
         
         return led_colors
     

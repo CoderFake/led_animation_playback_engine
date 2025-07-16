@@ -266,16 +266,64 @@ class LEDOutput:
     
     def _broadcast_data(self, binary_data: bytes) -> int:
         """
-        Broadcast data to all active destinations
+        Broadcast data to all active destinations with range mode support
         """
         successful_sends = 0
         output_address = EngineSettings.OSC.output_address
         
+        led_count = len(binary_data) // 4
+        
         for destination in self.destinations:
-            if destination.send_data(output_address, binary_data):
+            if not destination.enabled or not destination.client:
+                continue
+                
+            dest_config = self._get_destination_config(destination.index)
+            if not dest_config:
+                data_to_send = binary_data
+            else:
+                if dest_config.copy_mode:
+                    data_to_send = binary_data
+                else:
+                    data_to_send = self._extract_led_range(
+                        binary_data, led_count, 
+                        dest_config.start_led, dest_config.end_led
+                    )
+            
+            if destination.send_data(output_address, data_to_send):
                 successful_sends += 1
         
         return successful_sends
+    
+    def _get_destination_config(self, dest_index: int):
+        """Get destination configuration from settings"""
+        try:
+            destinations_config = EngineSettings.get_led_destinations()
+            if dest_index < len(destinations_config):
+                return destinations_config[dest_index]
+            return None
+        except Exception:
+            return None
+    
+    def _extract_led_range(self, binary_data: bytes, led_count: int, start_led: int, end_led: int) -> bytes:
+        """Extract LED range from binary data for range mode"""
+        try:
+            # Handle end_led = -1 (full range)
+            if end_led == -1:
+                end_led = led_count - 1
+            
+            # Clamp indices to valid range
+            start_led = max(0, min(start_led, led_count - 1))
+            end_led = max(start_led, min(end_led, led_count - 1))
+            
+            # Extract range (4 bytes per LED)
+            start_byte = start_led * 4
+            end_byte = (end_led + 1) * 4
+            
+            return binary_data[start_byte:end_byte]
+            
+        except Exception as e:
+            logger.error(f"Error extracting LED range [{start_led}:{end_led}]: {e}")
+            return binary_data
     
     def _update_statistics(self, current_time: float, data_size: int, successful_sends: int):
         """

@@ -1,5 +1,5 @@
 """
-Segment model - Fixed version with improved time-based dimmer and fractional positioning
+Segment model - Improved time-based dimmer and fractional positioning
 Zero-origin IDs with stable brightness calculations and boundary checking
 """
 
@@ -9,6 +9,7 @@ import time
 import math
 from ..utils.validation import ValidationUtils, DataSanitizer, log_validation_error
 from ..utils.logging import LoggingUtils, AnimationLogger
+from ..utils.color_utils import ColorUtils
 
 
 @dataclass
@@ -20,7 +21,7 @@ class Segment:
     
     segment_id: int
     color: List[int] = field(default_factory=lambda: [0])
-    transparency: List[float] = field(default_factory=lambda: [1.0])
+    transparency: List[float] = field(default_factory=lambda: [0.0])
     length: List[int] = field(default_factory=lambda: [10])
     move_speed: float = 0.0
     move_range: List[int] = field(default_factory=lambda: [0, 224])
@@ -39,13 +40,13 @@ class Segment:
             self.color = [0]
         
         if not self.transparency:
-            self.transparency = [1.0] * len(self.color)
+            self.transparency = [0.0] * len(self.color)
         
         if not self.length:
             self.length = [1] * len(self.color)
         
         while len(self.transparency) < len(self.color):
-            self.transparency.append(1.0)
+            self.transparency.append(0.0)
         
         while len(self.length) < len(self.color):
             self.length.append(1)
@@ -58,7 +59,7 @@ class Segment:
         self._validate_dimmer_time()
     
     def _validate_dimmer_time(self):
-        """Validate and fix dimmer_time data"""
+        """Validate dimmer_time data"""
         if not self.dimmer_time:
             self.dimmer_time = [[1000, 0, 100]]
             return
@@ -91,6 +92,11 @@ class Segment:
             if total_cycle_ms <= 0:
                 return 1.0
             
+            if elapsed_ms > 0 and elapsed_ms % total_cycle_ms == 0:
+                if self.dimmer_time:
+                    last_brightness = self.dimmer_time[-1][2]
+                    return max(0.0, min(1.0, last_brightness / 100.0))
+            
             elapsed_ms = elapsed_ms % total_cycle_ms
             
             current_time_ms = 0
@@ -105,14 +111,15 @@ class Segment:
                         progress = 0.0
                     
                     brightness = start_brightness + (end_brightness - start_brightness) * progress
-                    result = max(0.0, min(1.0, brightness / 100.0))
-                    return max(0.01, result)
+                    result = brightness / 100.0
+                    result = max(0.0, min(1.0, result))
+                    return result
                     
                 current_time_ms += duration_ms
             
             if self.dimmer_time:
                 last_brightness = self.dimmer_time[-1][2] 
-                return max(0.01, max(0.0, min(1.0, last_brightness / 100.0)))
+                return max(0.0, min(1.0, last_brightness / 100.0))
             
             return 1.0
             
@@ -202,33 +209,26 @@ class Segment:
                     continue
                 
                 color_index = self.color[part_index] if part_index < len(self.color) else 0
-                alpha = self.transparency[part_index] if part_index < len(self.transparency) else 1.0
+                transparency = self.transparency[part_index] if part_index < len(self.transparency) else 0.0
                 
                 for led_in_part in range(part_length):
-                    if 0 <= color_index < len(palette):
-                        base_color = palette[color_index][:3] if len(palette[color_index]) >= 3 else [0, 0, 0]
-                    else:
-                        base_color = [0, 0, 0]
+                    base_color = ColorUtils.get_palette_color(palette, color_index)
                     
-                    final_color = [
-                        max(0, min(255, int(c * alpha * brightness_factor)))
-                        for c in base_color
-                    ]
+                    final_color = ColorUtils.calculate_segment_color(
+                        base_color, transparency, brightness_factor
+                    )
                     colors.append(final_color)
             
             if len(self.color) > len(self.length):
                 for extra_index in range(len(self.length), len(self.color)):
                     color_index = self.color[extra_index]
-                    if 0 <= color_index < len(palette):
-                        base_color = palette[color_index][:3] if len(palette[color_index]) >= 3 else [0, 0, 0]
-                    else:
-                        base_color = [0, 0, 0]
+                    transparency = self.transparency[extra_index] if extra_index < len(self.transparency) else 0.0
                     
-                    alpha = self.transparency[extra_index] if extra_index < len(self.transparency) else 1.0
-                    final_color = [
-                        max(0, min(255, int(c * alpha * brightness_factor)))
-                        for c in base_color
-                    ]
+                    base_color = ColorUtils.get_palette_color(palette, color_index)
+                    
+                    final_color = ColorUtils.calculate_segment_color(
+                        base_color, transparency, brightness_factor
+                    )
                     colors.append(final_color)
             
             return colors
@@ -273,19 +273,15 @@ class Segment:
                     continue
                 
                 if len(segment_colors) > 1 and fractional_part > 0:
-                    if i == 0:
-                        fade_factor = max(0.1, fractional_part)
-                        faded_color = [max(0, min(255, int(c * fade_factor))) for c in color[:3]]
-                    elif i == len(segment_colors) - 1:
-                        fade_factor = max(0.1, 1.0 - fractional_part)
-                        faded_color = [max(0, min(255, int(c * fade_factor))) for c in color[:3]]
-                    else:
-                        faded_color = [max(0, min(255, int(c))) for c in color[:3]]
+                    is_first = (i == 0)
+                    is_last = (i == len(segment_colors) - 1)
+                    faded_color = ColorUtils.calculate_fractional_fade_color(
+                        color, fractional_part, is_first, is_last
+                    )
                 else:
-                    faded_color = [max(0, min(255, int(c))) for c in color[:3]]
+                    faded_color = ColorUtils.validate_rgb_color(color)
                 
-                for j in range(min(3, len(faded_color), len(led_array[led_index]))):
-                    led_array[led_index][j] = min(255, led_array[led_index][j] + faded_color[j])
+                ColorUtils.add_colors_to_led_array(led_array, led_index, faded_color)
                         
         except Exception as e:
             import sys
@@ -371,7 +367,7 @@ class Segment:
         self.reset_animation_timing()
     
     def is_active(self) -> bool:
-        """Check if the segment is active (has visible LEDs)"""
+        """Check if the segment is active"""
         try:
             return (any(c >= 0 for c in self.color) and 
                     sum(max(0, length) for length in self.length) > 0 and
@@ -398,7 +394,7 @@ class Segment:
                 log_validation_error(f"Invalid length values: {self.length}", "length")
                 return False
             
-            if not ValidationUtils.validate_float(self.move_speed, *ValidationUtils.SPEED_RANGE):
+            if not ValidationUtils.validate_float(self.move_speed, *ValidationUtils.get_speed_range()):
                 log_validation_error(f"Invalid move_speed: {self.move_speed}", "move_speed")
                 return False
             
@@ -419,8 +415,9 @@ class Segment:
                 return False
         
             total_leds = sum(self.length)
-            if total_leds > ValidationUtils.MAX_LED_COUNT:
-                log_validation_error(f"Total LED count {total_leds} exceeds maximum {ValidationUtils.MAX_LED_COUNT}", "total_leds")
+            led_range = ValidationUtils.get_default_led_count_range()
+            if total_leds > led_range[1]:
+                log_validation_error(f"Total LED count {total_leds} exceeds maximum {led_range[1]}", "total_leds")
                 return False
             
             return True
@@ -436,7 +433,7 @@ class Segment:
             self.color = DataSanitizer.sanitize_color_indices(self.color)
             self.transparency = DataSanitizer.sanitize_transparency_values(self.transparency, len(self.color))
             self.length = DataSanitizer.sanitize_length_values(self.length, len(self.color))
-            self.move_speed = DataSanitizer.sanitize_float(self.move_speed, 0.0, *ValidationUtils.SPEED_RANGE)
+            self.move_speed = DataSanitizer.sanitize_float(self.move_speed, 0.0, *ValidationUtils.get_speed_range())
             self.move_range = DataSanitizer.sanitize_move_range(self.move_range, led_count)
             self.current_position = DataSanitizer.sanitize_float(self.current_position, 0.0, *ValidationUtils.POSITION_RANGE)
             if not self.dimmer_time or not isinstance(self.dimmer_time, list):

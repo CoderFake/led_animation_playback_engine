@@ -260,7 +260,6 @@ def track_performance(component: str, operation: str):
         return wrapper
     return decorator
 
-# Convenience functions for common logging patterns
 def log_osc_received(address: str, args: list = None):
     """Quick log for OSC message received"""
     OSCLogger.log_received(address, args or [])

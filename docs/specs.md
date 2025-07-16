@@ -194,7 +194,7 @@ class Segment:
                 continue
             
             color_index = self.color[part_index] if part_index < len(self.color) else 0
-            transparency = self.transparency[part_index] if part_index < len(self.transparency) else 1.0
+            transparency = self.transparency[part_index] if part_index < len(self.transparency) else 0.0
             
             for led_in_part in range(part_length):
                 if 0 <= color_index < len(palette):
@@ -202,7 +202,9 @@ class Segment:
                 else:
                     base_color = [0, 0, 0]
                 
-                color = [c * transparency for c in base_color]
+                # Apply transparency: 0.0 = opaque, 1.0 = transparent
+                opacity = 1.0 - transparency
+                color = [c * opacity for c in base_color]
                 color = [c * brightness_factor for c in color]
                 
                 final_color = [max(0, min(255, int(c))) for c in color]

@@ -12,7 +12,6 @@ from logging.handlers import RotatingFileHandler
 import colorama
 from colorama import Fore, Back, Style
 from datetime import datetime
-
 from config.settings import EngineSettings
 
 colorama.init(autoreset=True)
@@ -276,21 +275,6 @@ class ComponentLogger:
             "operations": self.operation_count,
             "ops_per_second": self.operation_count / uptime if uptime > 0 else 0
         }
-
-
-def log_system_info():
-    """Log system information for debugging"""
-    logger = get_logger("SystemInfo")
-    
-    logger.info("=" * 50)
-    logger.info("SYSTEM INFORMATION")
-    logger.info("=" * 50)
-    logger.info(f"Python Version: {sys.version}")
-    logger.info(f"Platform: {sys.platform}")
-    logger.info(f"Working Directory: {os.getcwd()}")
-    logger.info(f"Logger Mode: {LoggerMode.get_mode()}")
-    logger.info(f"Log Level: {EngineSettings.LOGGING.level}")
-    logger.info("=" * 50)
 
 
 def setup_background_logging():

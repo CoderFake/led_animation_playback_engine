@@ -1,5 +1,5 @@
 """
-Scene Manager - Fixed version with improved transition handling and LED count management
+Scene Manager - Improved transition handling and LED count management
 Supports zero-origin IDs, time-based rendering, and dynamic LED counts
 """
 
@@ -14,186 +14,12 @@ from enum import Enum
 from src.models.scene import Scene
 from config.settings import EngineSettings
 from src.utils.logger import ComponentLogger
+from src.utils.color_utils import ColorUtils
+from src.models.common import PatternTransition, PatternTransitionConfig, DissolveTransition
+from src.models.types import TransitionPhase, DissolvePhase
+
 
 logger = ComponentLogger("SceneManager")
-
-
-class TransitionPhase(Enum):
-    """Pattern transition phases"""
-    FADE_OUT = "fade_out"
-    WAITING = "waiting" 
-    FADE_IN = "fade_in"
-    COMPLETED = "completed"
-
-
-class DissolvePhase(Enum):
-    """Dissolve transition phases"""
-    PREPARING = "preparing"
-    DISSOLVING = "dissolving"
-    COMPLETED = "completed"
-
-
-@dataclass
-class DissolveTransition:
-    """Active dissolve transition state with per-LED timing"""
-    is_active: bool = False
-    phase: DissolvePhase = DissolvePhase.COMPLETED
-    
-    from_scene_id: Optional[int] = None
-    from_effect_id: Optional[int] = None
-    from_palette_id: Optional[int] = None
-    to_scene_id: Optional[int] = None
-    to_effect_id: Optional[int] = None
-    to_palette_id: Optional[int] = None
-    
-    pattern_id: int = 0
-    pattern_data: List[List[int]] = None 
-    
-    start_time: float = 0.0
-    led_count: int = 225
-    
-    led_states: List[Dict[str, Any]] = None 
-    
-    def __post_init__(self):
-        """Initialize LED states"""
-        if self.led_states is None:
-            self.led_states = []
-        self._initialize_led_states()
-    
-    def _initialize_led_states(self):
-        """Initialize per-LED dissolve states"""
-        self.led_states = []
-        for i in range(self.led_count):
-            self.led_states.append({
-                'phase': 'waiting',
-                'start_time': 0.0,
-                'duration_ms': 0,
-                'progress': 0.0,
-                'from_color': [0, 0, 0],
-                'to_color': [0, 0, 0]
-            })
-    
-    def start_dissolve(self, pattern_data: List[List[int]], led_count: int):
-        """Start dissolve transition with pattern data"""
-        self.pattern_data = pattern_data
-        self.led_count = led_count
-        self.start_time = time.time()
-        self.phase = DissolvePhase.DISSOLVING
-        self.is_active = True
-        
-        self._initialize_led_states()
-        self._setup_led_timing()
-    
-    def _setup_led_timing(self):
-        """Setup timing for each LED based on pattern"""
-        if not self.pattern_data:
-            return
-        
-        for transition in self.pattern_data:
-            if len(transition) != 4:
-                continue
-                
-            delay_ms, duration_ms, start_led, end_led = transition
-            
-            start_led = max(0, min(start_led, self.led_count - 1))
-            end_led = max(start_led, min(end_led, self.led_count - 1))
-            
-            for led_idx in range(start_led, end_led + 1):
-                if led_idx < len(self.led_states):
-                    self.led_states[led_idx]['start_time'] = self.start_time + (delay_ms / 1000.0)
-                    self.led_states[led_idx]['duration_ms'] = duration_ms
-                    self.led_states[led_idx]['phase'] = 'waiting'
-    
-    def update_dissolve(self, current_time: float, from_colors: List[List[int]], to_colors: List[List[int]]):
-        """Update dissolve transition state"""
-        if not self.is_active or self.phase != DissolvePhase.DISSOLVING:
-            return
-        
-        all_completed = True
-        
-        for led_idx in range(min(len(self.led_states), len(from_colors), len(to_colors))):
-            led_state = self.led_states[led_idx]
-            
-            if led_state['phase'] == 'waiting':
-                if current_time >= led_state['start_time']:
-                    led_state['phase'] = 'dissolving'
-                    led_state['from_color'] = from_colors[led_idx][:3]
-                    led_state['to_color'] = to_colors[led_idx][:3]
-                else:
-                    all_completed = False
-            
-            elif led_state['phase'] == 'dissolving':
-                elapsed_ms = (current_time - led_state['start_time']) * 1000
-                
-                if elapsed_ms >= led_state['duration_ms']:
-                    led_state['phase'] = 'completed'
-                    led_state['progress'] = 1.0
-                else:
-                    led_state['progress'] = elapsed_ms / led_state['duration_ms'] if led_state['duration_ms'] > 0 else 1.0
-                    all_completed = False
-        
-        if all_completed:
-            self.phase = DissolvePhase.COMPLETED
-            self.is_active = False
-    
-    def get_led_output(self, from_colors: List[List[int]], to_colors: List[List[int]]) -> List[List[int]]:
-        """Get blended LED output during dissolve"""
-        if not self.is_active or self.phase != DissolvePhase.DISSOLVING:
-            return to_colors
-        
-        output = []
-        
-        for led_idx in range(min(len(self.led_states), len(from_colors), len(to_colors))):
-            led_state = self.led_states[led_idx]
-            
-            if led_state['phase'] == 'waiting':
-                # Still showing from_color
-                output.append(from_colors[led_idx][:3])
-            elif led_state['phase'] == 'dissolving':
-                # Blend from_color to to_color
-                progress = led_state['progress']
-                from_color = led_state['from_color']
-                to_color = led_state['to_color']
-                
-                blended = [
-                    int(from_color[i] * (1.0 - progress) + to_color[i] * progress)
-                    for i in range(3)
-                ]
-                output.append(blended)
-            else:  # completed
-                # Show to_color
-                output.append(to_colors[led_idx][:3])
-        
-        return output
-
-
-@dataclass  
-class PatternTransition:
-    """Active pattern transition state"""
-    is_active: bool = False
-    phase: TransitionPhase = TransitionPhase.COMPLETED
-    
-    from_effect_id: int = None
-    from_palette_id: int = None
-    to_effect_id: int = None
-    to_palette_id: int = None
-    
-    start_time: float = 0.0
-    fade_in_ms: int = 200
-    fade_out_ms: int = 200
-    waiting_ms: int = 100
-    
-    phase_start_time: float = 0.0
-    progress: float = 0.0
-
-
-@dataclass
-class PatternTransitionConfig:
-    """Configuration for pattern transitions"""
-    fade_in_ms: int = 200
-    fade_out_ms: int = 200
-    waiting_ms: int = 100
-
 
 class SceneManager:
     """
@@ -303,7 +129,7 @@ class SceneManager:
                     logger.warning(f"No dissolve pattern {self.current_dissolve_pattern_id} available")
                     return False
                 
-                if not self.active_scene_id or self.active_scene_id not in self.scenes:
+                if self.active_scene_id is None or self.active_scene_id not in self.scenes:
                     logger.warning("Cannot start dissolve transition: no active scene")
                     return False
                 
@@ -405,7 +231,7 @@ class SceneManager:
     
     def _complete_pattern_transition(self):
         """Complete the active pattern transition"""
-        if not self.active_scene_id or self.active_scene_id not in self.scenes:
+        if self.active_scene_id is None or self.active_scene_id not in self.scenes:
             return
             
         scene = self.scenes[self.active_scene_id]
@@ -430,7 +256,7 @@ class SceneManager:
             elif self.pattern_transition.is_active:
                 return self._get_transition_led_output_with_timing(current_time)
             else:
-                if self.active_scene_id and self.active_scene_id in self.scenes:
+                if self.active_scene_id is not None and self.active_scene_id in self.scenes:
                     scene = self.scenes[self.active_scene_id]
                     return scene.get_led_output_with_timing(current_time)
                 return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
@@ -441,7 +267,7 @@ class SceneManager:
     
     def _get_transition_led_output_with_timing(self, current_time: float) -> List[List[int]]:
         """Generate LED output during transitions with improved brightness handling"""
-        if not self.active_scene_id or self.active_scene_id not in self.scenes:
+        if self.active_scene_id is None or self.active_scene_id not in self.scenes:
             return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
         
         scene = self.scenes[self.active_scene_id]
@@ -454,7 +280,7 @@ class SceneManager:
             
             brightness = self.pattern_transition.progress
             return [
-                [int(color[0] * brightness), int(color[1] * brightness), int(color[2] * brightness)]
+                ColorUtils.apply_brightness(color, brightness)
                 for color in output
             ]
         
@@ -468,7 +294,7 @@ class SceneManager:
             
             brightness = self.pattern_transition.progress
             return [
-                [int(color[0] * brightness), int(color[1] * brightness), int(color[2] * brightness)]
+                ColorUtils.apply_brightness(color, brightness)
                 for color in output
             ]
         
@@ -713,7 +539,7 @@ class SceneManager:
         """Update specific color in palette using zero-origin IDs"""
         try:
             with self._lock:
-                if not self.active_scene_id or self.active_scene_id not in self.scenes:
+                if self.active_scene_id is None or self.active_scene_id not in self.scenes:
                     logger.warning("No active scene for palette color update")
                     return False
                 
@@ -760,7 +586,7 @@ class SceneManager:
     
     def _log_animation_status(self):
         """Log animation status for debugging"""
-        if not self.active_scene_id or self.active_scene_id not in self.scenes:
+        if self.active_scene_id is None or self.active_scene_id not in self.scenes:
             return
             
         try:
@@ -846,7 +672,7 @@ class SceneManager:
     def get_current_scene_info(self) -> Dict[str, Any]:
         """Get detailed information about current scene"""
         with self._lock:
-            if not self.active_scene_id or self.active_scene_id not in self.scenes:
+            if self.active_scene_id is None or self.active_scene_id not in self.scenes:
                 return {
                     "scene_id": None,
                     "effect_id": None,

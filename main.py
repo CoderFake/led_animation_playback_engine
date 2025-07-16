@@ -1,5 +1,5 @@
 """
-LED Animation Playback Engine - Terminal Mode (Fixed Version)
+LED Animation Playback Engine
 High-performance LED animation system with OSC control and improved error handling
 """
 
@@ -220,15 +220,6 @@ async def run_terminal():
     await app_instance.run()
 
 
-def print_banner():
-    """
-    Print application banner
-    """
-    print("LED Animation Engine")
-    print(f"Target: {EngineSettings.ANIMATION.target_fps} FPS | LEDs: {EngineSettings.ANIMATION.led_count}")
-    print()
-
-
 def validate_environment():
     """
     Validate environment and configuration before starting
@@ -260,8 +251,6 @@ def main():
     Main entry point for the LED Animation Engine
     """
     global args
-    
-    print_banner()
     
     parser = argparse.ArgumentParser(
         description='LED Animation Playback Engine',
