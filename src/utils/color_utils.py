@@ -10,8 +10,8 @@ logger = setup_logger(__name__)
 
 
 class ColorUtils:
-    """Centralized color calculation utilities following DRY principles"""
-    
+    """Centralized color calculation utilities"""
+
     @staticmethod
     def validate_rgb_color(color: List[int]) -> List[int]:
         """Validate and sanitize RGB color values"""

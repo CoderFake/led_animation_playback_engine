@@ -18,7 +18,7 @@ from .osc_handler import OSCHandler
 from config.settings import EngineSettings
 from src.utils.logger import ComponentLogger
 from src.utils.performance import PerformanceMonitor, ProfilerManager
-from src.utils.fps_balancer import FPSBalancer
+from src.utils.fps_balancer import CompleteFPSBalancer
 from src.utils.logging import AnimationLogger, OSCLogger, LoggingUtils, PerformanceTracker
 from src.utils.validation import ValidationUtils
 from src.utils.color_utils import ColorUtils
@@ -38,7 +38,7 @@ class AnimationEngine:
         self.stats = EngineStats()
         self.performance_monitor = PerformanceMonitor()
         self.profiler = ProfilerManager()
-        self.fps_balancer = FPSBalancer(self, self.led_output)
+        self.fps_balancer = CompleteFPSBalancer(self)
         
         self.running = False
         self.animation_thread = None
@@ -306,8 +306,6 @@ class AnimationEngine:
                 actual_sleep_time = actual_loop_time - frame_time
                 
                 self.fps_balancer.update_timing(frame_time, actual_sleep_time, actual_loop_time)
-                if self.frame_count % 10 == 0:
-                    self.fps_balancer._calculate_optimal_target_fps()
             
             logger.info("Animation loop stopped")
         
@@ -475,21 +473,20 @@ class AnimationEngine:
     def get_scene_info(self) -> Dict[str, Any]:
         return self.scene_manager.get_current_scene_info()
     
-    def set_target_fps(self, target_fps: float):
-        """Set target FPS và cập nhật FPS balancer"""
+    def set_target_fps(self, target_fps: float, propagate_to_balancer: bool = True):
+        """Set target FPS và cập nhật FPS balancer nếu cần"""
         try:
             if target_fps <= 0 or target_fps > 240:
                 raise ValueError(f"Target FPS must be between 1 and 240, got {target_fps}")
             
             with self._lock:
+                old_fps = self.target_fps
                 self.target_fps = target_fps
                 self.frame_interval = 1.0 / self.target_fps
                 self.stats.target_fps = target_fps
-                
-                # Update FPS balancer
-                self.fps_balancer.set_desired_fps(target_fps)
-                
-                logger.info(f"Target FPS updated to {target_fps}")
+                self.fps_history.clear()
+                if propagate_to_balancer:
+                    self.fps_balancer.set_desired_fps(target_fps)
                 
         except Exception as e:
             logger.error(f"Error setting target FPS: {e}")

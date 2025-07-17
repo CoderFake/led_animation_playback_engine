@@ -49,6 +49,10 @@ class DissolvePatternManager:
                 return False
             
             patterns_data = data["dissolve_patterns"]
+            pattern_keys = list(patterns_data.keys())
+            if len(pattern_keys) != len(set(pattern_keys)):
+                logger.error("Invalid JSON") 
+                return False
             self.patterns.clear()
             
             for pattern_id_str, pattern_data in patterns_data.items():

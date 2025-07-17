@@ -417,11 +417,25 @@ class SceneManager:
                     return False
                 
                 scenes_data = data.get("scenes", [])
+
+                scene_ids = [s.get("scene_id", s.get("scene_ID")) for s in scenes_data]
+                if len(scene_ids) != len(set(scene_ids)):
+                    logger.error("Invalid JSON")
+                    return False
+
                 if not scenes_data:
                     logger.warning(f"File {file_path} has empty 'scenes' array")
                     return False
                 
                 loaded_count = 0
+
+                for scene_data in scenes_data:
+                    effects_data = scene_data.get("effects", [])
+                    if isinstance(effects_data, list):
+                        effect_ids = [e.get("effect_id", e.get("effect_ID")) for e in effects_data if e.get("effect_id") is not None or e.get("effect_ID") is not None]
+                        if len(effect_ids) != len(set(effect_ids)):
+                            logger.error("Invalid JSON")
+                            return False
                 
                 for scene_data in scenes_data:
                     try:

@@ -75,7 +75,7 @@ class AnimationConfig(BaseModel):
             LEDDestination(
                 ip="127.0.0.1", 
                 port=7001, 
-                start_led=205, 
+                start_led=205,
                 end_led=409, 
                 copy_mode=False, 
                 enabled=True, 
