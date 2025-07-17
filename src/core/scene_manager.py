@@ -1,5 +1,5 @@
 """
-Complete SceneManager implementation with dissolve crossfade support
+SceneManager implementation with dissolve crossfade support
 Handles scene/effect/palette changes with simultaneous fade-out and fade-in
 """
 
@@ -19,11 +19,11 @@ from config.settings import EngineSettings
 logger = LoggingUtils._get_logger("SceneManager")
 
 
+
 class SceneManager:
     """
-    Scene management with dissolve crossfade transitions only
+    Scene management với dissolve crossfade transitions
     Handles loading, switching, and transitioning between scenes/effects/palettes
-    Uses only dissolve crossfade system per specifications
     """
     
     def __init__(self):
@@ -104,7 +104,6 @@ class SceneManager:
                         continue
                 
                 if scenes_loaded > 0:
-                    # Set first scene as current if none set
                     if self.current_scene_id is None:
                         first_scene_id = min(self.scenes.keys())
                         self.current_scene_id = first_scene_id
@@ -132,6 +131,79 @@ class SceneManager:
                        f"(Effect: {self.current_scene.current_effect_id}, "
                        f"Palette: {self.current_scene.current_palette_id})")
     
+    # ==================== Animation Update ====================
+    
+    def update_animation(self, delta_time: float):
+        """Update animation for current scene"""
+        try:
+            with self._lock:
+                if not self.current_scene:
+                    return
+                
+                current_effect = self.current_scene.get_current_effect()
+                if current_effect:
+                    # Update all segments in the current effect
+                    current_effect.update_animation(delta_time)
+                    
+        except Exception as e:
+            logger.error(f"Error updating animation: {e}")
+    
+    # ==================== LED Output Methods ====================
+    
+    def get_rendered_led_array(self) -> List[List[int]]:
+        """Get final rendered LED array with dissolve crossfade"""
+        try:
+            if self.dissolve_transition.is_active:
+                result = self.dissolve_transition.update_dissolve(time.time())
+                
+                if not self.dissolve_transition.is_active:
+                    self.stats['dissolve_transitions_completed'] += 1
+                    logger.info("Dissolve transition completed")
+                
+                return result
+            else:
+                return self._get_current_led_array()
+                
+        except Exception as e:
+            logger.error(f"Error getting rendered LED array: {e}")
+            return [[0, 0, 0] for _ in range(225)]
+    
+    def get_led_output_with_timing(self, current_time: float) -> List[List[int]]:
+        """Get LED output with time-based brightness and fractional positioning"""
+        try:
+            with self._lock:
+                if not self.current_scene:
+                    return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
+                
+                current_effect = self.current_scene.get_current_effect()
+                if not current_effect:
+                    return [[0, 0, 0] for _ in range(self.current_scene.led_count)]
+                
+                led_array = [[0, 0, 0] for _ in range(self.current_scene.led_count)]
+                palette = self.current_scene.get_current_palette()
+                
+                current_effect.render_to_led_array(palette, current_time, led_array)
+                
+                return led_array
+                
+        except Exception as e:
+            logger.error(f"Error getting LED output with timing: {e}")
+            return [[0, 0, 0] for _ in range(225)]
+    
+    def _get_current_led_array(self) -> List[List[int]]:
+        """Get current LED array state for dissolve transitions"""
+        if not self.current_scene:
+            return [[0, 0, 0] for _ in range(225)]
+        
+        led_array = [[0, 0, 0] for _ in range(self.current_scene.led_count)]
+        current_effect = self.current_scene.get_current_effect()
+        
+        if current_effect:
+            palette = self.current_scene.get_current_palette()
+            current_effect.render_to_led_array(palette, time.time(), led_array)
+        
+        return led_array
+    
     # ==================== Dissolve Pattern Management ====================
     
     def load_dissolve_json(self, file_path: str) -> bool:
@@ -146,7 +218,6 @@ class SceneManager:
                 pattern_ids = self.dissolve_patterns.get_available_patterns()
                 logger.info(f"Available dissolve patterns: {pattern_ids}")
                 
-                # Auto-set first pattern if none set
                 if self.dissolve_patterns.current_pattern_id is None and pattern_ids:
                     self.dissolve_patterns.set_current_pattern(pattern_ids[0])
                     logger.info(f"Auto-set dissolve pattern to {pattern_ids[0]}")
@@ -242,9 +313,9 @@ class SceneManager:
                     logger.warning("No active scene for effect change")
                     return False
                 
-                if effect_id not in self.current_scene.effects:
-                    available_effects = list(self.current_scene.effects.keys())
-                    logger.warning(f"Effect {effect_id} not found. Available: {available_effects}")
+                available_effects = list(range(len(self.current_scene.effects)))
+                if effect_id < 0 or effect_id >= len(self.current_scene.effects):
+                    logger.warning(f"Effect ID {effect_id} invalid. Available effects: {available_effects}")
                     return False
                 
                 old_effect_id = self.current_scene.current_effect_id
@@ -351,40 +422,6 @@ class SceneManager:
             self.stats['errors'] += 1
             return False
     
-    # ==================== LED Output ====================
-    
-    def _get_current_led_array(self) -> List[List[int]]:
-        """Get current LED array state for dissolve transitions"""
-        if not self.current_scene:
-            return [[0, 0, 0] for _ in range(225)]
-        
-        led_array = [[0, 0, 0] for _ in range(self.current_scene.led_count)]
-        current_effect = self.current_scene.get_current_effect()
-        
-        if current_effect:
-            palette = self.current_scene.get_current_palette()
-            current_effect.render_to_led_array(palette, time.time(), led_array)
-        
-        return led_array
-    
-    def get_rendered_led_array(self) -> List[List[int]]:
-        """Get final rendered LED array with dissolve crossfade"""
-        try:
-            if self.dissolve_transition.is_active:
-                result = self.dissolve_transition.update_dissolve(time.time())
-                
-                if not self.dissolve_transition.is_active:
-                    self.stats['dissolve_transitions_completed'] += 1
-                    logger.info("Dissolve transition completed")
-                
-                return result
-            else:
-                return self._get_current_led_array()
-                
-        except Exception as e:
-            logger.error(f"Error getting rendered LED array: {e}")
-            return [[0, 0, 0] for _ in range(225)]
-    
     # ==================== Status and Information ====================
     
     def get_scene_info(self) -> Dict[str, Any]:
@@ -396,14 +433,19 @@ class SceneManager:
                     "available_scenes": list(self.scenes.keys())
                 }
             
+            available_effects = []
+            if hasattr(self.current_scene, 'effects'):
+                available_effects = list(range(len(self.current_scene.effects)))
+            
             return {
                 "scene_id": self.current_scene_id,
                 "effect_id": self.current_scene.current_effect_id,
                 "palette_id": self.current_scene.current_palette_id,
                 "led_count": self.current_scene.led_count,
                 "fps": self.current_scene.fps,
-                "available_effects": list(self.current_scene.effects.keys()),
+                "available_effects": available_effects,
                 "available_palettes": list(range(len(self.current_scene.palettes))),
+                "available_scenes": list(self.scenes.keys()),
                 "dissolve_info": self.get_dissolve_info()
             }
     

@@ -341,7 +341,6 @@ class AnimationEngine:
         logger.debug("Performance monitoring loop stopped")
     
     def _on_fps_event(self, event_data):
-        """Callback when FPS balancer has an event"""
         try:
             event_type = event_data.get("type")
             
@@ -354,7 +353,6 @@ class AnimationEngine:
             logger.error(f"Error in FPS event callback: {e}")
     
     def _handle_target_fps_adjusted(self, event_data):
-        """Update target FPS when balancer adjusts it"""
         new_target = event_data.get("new_target", 0)
         
         with self._lock:
@@ -363,7 +361,6 @@ class AnimationEngine:
             self.stats.target_fps = new_target
     
     def _handle_led_count_changed(self, event_data):
-        """Handle when LED count changes significantly""" 
         old_count = event_data.get("old_count", 0)
         new_count = event_data.get("new_count", 0)
         ratio = event_data.get("ratio", 1.0)
@@ -378,7 +375,7 @@ class AnimationEngine:
                 self.stats.actual_fps = average_fps
                 
                 if self.animation_running:
-                    led_colors = self.scene_manager.get_led_output_with_timing(time.time())
+                    led_colors = self.scene_manager.get_rendered_led_array()
                   
                     raw_active = ColorUtils.count_active_leds(led_colors)
                     led_colors = ColorUtils.apply_colors_to_array(led_colors, self.master_brightness)
@@ -393,7 +390,7 @@ class AnimationEngine:
             
             efficiency = (average_fps / self.target_fps) * 100
             
-            logger.info(f"Frame {self.frame_count}: FPS {average_fps:.1f} ({efficiency:.1f}%), Speed {self.speed_percent}%, Active LEDs {self.stats.active_leds}")
+            logger.info(f"Frame {self.frame_count}: FPS {average_fps:.1f}, Speed {self.speed_percent}%, Active LEDs {self.stats.active_leds}")
             
             if efficiency < 90:
                 logger.warning(f"Performance below target: {efficiency:.1f}%")
@@ -407,7 +404,7 @@ class AnimationEngine:
             stats_copy.animation_running = self.animation_running
             
             if self.animation_running:
-                led_colors = self.scene_manager.get_led_output_with_timing(time.time())
+                led_colors = self.scene_manager.get_rendered_led_array()
                 led_colors = ColorUtils.apply_colors_to_array(led_colors, self.master_brightness)
                 
                 active_leds = ColorUtils.count_active_leds(led_colors)
@@ -427,7 +424,6 @@ class AnimationEngine:
             return stats_copy
     
     def reset_fps_balancer(self):
-        """Reset FPS balancer to default state"""
         try:
             self.fps_balancer.force_reset()
             logger.info("FPS balancer reset to default state")
@@ -441,17 +437,17 @@ class AnimationEngine:
                 speed_percent = self.speed_percent
                 master_brightness = self.master_brightness
             
+            # Update animation với speed multiplier
             adjusted_delta = delta_time * (speed_percent / 100.0)
-            
-            scene_start = time.perf_counter()
             self.scene_manager.update_animation(adjusted_delta)
             
-            led_start = time.perf_counter()
-            led_colors = self.scene_manager.get_led_output_with_timing(current_time)
-        
+            # Get LED output với timing
+            led_colors = self.scene_manager.get_rendered_led_array()
+            
+            # Apply master brightness
             led_colors = ColorUtils.apply_colors_to_array(led_colors, master_brightness)
             
-            outpu_start = time.perf_counter()
+            # Send to LED output
             self.led_output.send_led_data(led_colors)
                 
         except Exception as e:
@@ -473,7 +469,6 @@ class AnimationEngine:
         return self.scene_manager.get_scene_info()
     
     def set_target_fps(self, target_fps: float, propagate_to_balancer: bool = True):
-        """Set target FPS và cập nhật FPS balancer nếu cần"""
         try:
             if target_fps <= 0 or target_fps > 240:
                 raise ValueError(f"Target FPS must be between 1 and 240, got {target_fps}")
@@ -495,127 +490,69 @@ class AnimationEngine:
         if not self.animation_running:
             return [[0, 0, 0] for _ in range(self.get_current_led_count())]
             
-        led_colors = self.scene_manager.get_led_output_with_timing(time.time())
+        led_colors = self.scene_manager.get_rendered_led_array()
         led_colors = ColorUtils.apply_colors_to_array(led_colors, self.master_brightness)
         
         return led_colors
     
     def handle_load_json(self, address: str, *args):
+        """Fixed handle_load_json với proper error handling"""
         try:
             OSCLogger.log_received(address, list(args))
+            
             if not args or len(args) == 0:
                 OSCLogger.log_validation_failed(address, "file_path", None, "non-empty string")
                 return
             
             file_path = str(args[0])
-            AnimationLogger.log_parameter_change("json_file", file_path)
             
             if not file_path.lower().endswith('.json'):
                 file_path += '.json'
                 LoggingUtils.log_info("Animation", f"Appended .json extension: {file_path}")
             
+            LoggingUtils.log_info("Animation", f"Loading JSON from: {file_path}")
+            
             success = False
+            error_message = None
             
             try:
-                with self._lock:
-                    if "multiple" in file_path.lower() or "scenes" in file_path.lower():
-                        LoggingUtils.log_info("Animation", "Loading multiple scenes...")
-                        success = self.scene_manager.load_multiple_scenes_from_file(file_path)
-                    else:
-                        LoggingUtils.log_info("Animation", "Loading single scene...")
-                        success = self.scene_manager.load_scene_from_file(file_path)
-                        
-                    if not success:
-                        LoggingUtils.log_info("Animation", "Retrying as multiple scenes...")
-                        success = self.scene_manager.load_multiple_scenes_from_file(file_path)
-                        
+                file_path_obj = Path(file_path)
+                if not file_path_obj.exists():
+                    error_message = f"File not found: {file_path}"
+                    LoggingUtils.log_error("Animation", error_message)
+                    OSCLogger.log_error(address, error_message)
+                    return
+                
+                success = self.scene_manager.load_multiple_scenes_from_file(file_path)
+                
                 if success:
-                    self._notify_state_change()
                     scenes_count = len(self.scene_manager.scenes) if hasattr(self.scene_manager, 'scenes') else None
+                    LoggingUtils.log_info("Animation", f"Successfully loaded {scenes_count} scenes from {file_path}")
                     AnimationLogger.log_json_loaded("scenes", scenes_count)
                     
                     if not self.animation_running:
                         self._start_animation_loop()
                         LoggingUtils.log_info("Animation", "Animation loop started after loading scenes")
                     
+                    self._notify_state_change()
                     OSCLogger.log_processed(address, "success")
                 else:
-                    OSCLogger.log_error(address, f"Failed to load JSON from {file_path}")
+                    error_message = f"Failed to load or parse JSON file: {file_path}"
+                    LoggingUtils.log_error("Animation", error_message)
+                    OSCLogger.log_error(address, error_message)
                         
             except Exception as load_error:
-                OSCLogger.log_error(address, f"Error loading JSON scenes: {load_error}")
+                error_message = f"Error loading JSON scenes: {load_error}"
+                LoggingUtils.log_error("Animation", error_message)
+                OSCLogger.log_error(address, error_message)
                 
         except Exception as e:
-            OSCLogger.log_error(address, f"Error in handle_load_json: {e}")
-    
-    def handle_load_dissolve_json(self, address: str, *args):
-        try:
-            logger.info(f"OSC received: {address} with args: {args}")
-            
-            if not args or len(args) == 0:
-                logger.warning("Missing dissolve file path parameter")
-                return
-            
-            file_path = str(args[0])
-            logger.info(f"Loading dissolve patterns from: {file_path}")
-            
-            if not file_path.lower().endswith('.json'):
-                file_path += '.json'
-                logger.info(f"Appended .json extension: {file_path}")
-            
-            success = self.dissolve_manager.load_patterns_from_file(file_path)
-            
-            if success:
-                available_patterns = self.dissolve_manager.get_available_patterns()
-                logger.operation("load_dissolve_json", f"Successfully loaded dissolve patterns from {file_path}")
-                logger.info(f"Available patterns: {available_patterns}")
-                
-                self.scene_manager.load_dissolve_patterns(self.dissolve_manager.patterns)
-                
-                self._notify_state_change()
-            else:
-                logger.error(f"Failed to load dissolve patterns from {file_path}")
-                
-        except Exception as e:
-            logger.error(f"Error in handle_load_dissolve_json: {e}")
-    
-    def handle_set_dissolve_pattern(self, address: str, *args):
-        try:
-            logger.info(f"OSC received: {address} with args: {args}")
-            
-            if not args or len(args) == 0:
-                logger.warning("Missing pattern ID parameter")
-                return
-            
-            try:
-                pattern_id = int(args[0])
-                logger.info(f"Setting dissolve pattern to: {pattern_id}")
-                
-                available_patterns = self.dissolve_manager.get_available_patterns()
-                if pattern_id not in available_patterns and available_patterns:
-                    logger.warning(f"Pattern ID {pattern_id} invalid. Available patterns: {available_patterns}")
-                    return
-                
-                success = self.dissolve_manager.set_current_pattern(pattern_id)
-                
-                if success:
-                    scene_success = self.scene_manager.set_dissolve_pattern(pattern_id)
-                    
-                    if scene_success:
-                        logger.operation("set_dissolve_pattern", f"Successfully set pattern to {pattern_id}")
-                        self._notify_state_change()
-                    else:
-                        logger.warning(f"Failed to set pattern in scene manager: {pattern_id}")
-                else:
-                    logger.warning(f"Failed to set pattern: {pattern_id}")
-                    
-            except ValueError:
-                logger.error(f"Invalid pattern ID: {args[0]} (must be an integer)")
-                
-        except Exception as e:
-            logger.error(f"Error in handle_set_dissolve_pattern: {e}")
+            error_message = f"Error in handle_load_json: {e}"
+            LoggingUtils.log_error("Animation", error_message)
+            OSCLogger.log_error(address, error_message)
     
     def handle_change_scene(self, address: str, *args):
+        """Fixed handle_change_scene với proper validation"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -625,260 +562,346 @@ class AnimationEngine:
             
             try:
                 scene_id = int(args[0])
+                LoggingUtils.log_info("Animation", f"Attempting to change to scene: {scene_id}")
                 
-                scene_info = self.scene_manager.get_scene_info()
-                available_scenes = scene_info.get('available_scenes', [])
-                if available_scenes and scene_id not in available_scenes:
+                available_scenes = self.scene_manager.get_available_scenes()
+                if not available_scenes:
+                    error_message = "No scenes are loaded"
+                    LoggingUtils.log_error("Animation", error_message)
+                    OSCLogger.log_error(address, error_message)
+                    return
+                
+                if scene_id not in available_scenes:
+                    error_message = f"Scene {scene_id} not found. Available scenes: {available_scenes}"
+                    LoggingUtils.log_warning("Animation", error_message)
                     OSCLogger.log_validation_failed(address, "scene_id", scene_id, f"one of {available_scenes}")
                     return
                 
-                with self._lock:
-                    dissolve_info = self.scene_manager.get_dissolve_info()
-                    use_dissolve = dissolve_info.get('enabled', False)
-                    
-                    success = self.scene_manager.switch_scene(scene_id, use_dissolve=use_dissolve)
-                    if success:
-                        self._notify_state_change()
+                success = self.scene_manager.change_scene(scene_id)
                 
                 if success:
-                    transition_type = "dissolve" if use_dissolve else "direct"
+                    LoggingUtils.log_info("Animation", f"Successfully changed to scene {scene_id}")
                     AnimationLogger.log_scene_change(scene_id)
-                    OSCLogger.log_processed(address, f"success using {transition_type}")
+                    self._notify_state_change()
+                    OSCLogger.log_processed(address, "success")
                 else:
-                    OSCLogger.log_error(address, f"Failed to change scene to: {scene_id}")
+                    error_message = f"Failed to change to scene {scene_id}"
+                    LoggingUtils.log_error("Animation", error_message)
+                    OSCLogger.log_error(address, error_message)
                     
             except ValueError:
                 OSCLogger.log_validation_failed(address, "scene_id", args[0], "integer")
                 
         except Exception as e:
-            OSCLogger.log_error(address, f"Error in handle_change_scene: {e}")
+            error_message = f"Error in handle_change_scene: {e}"
+            LoggingUtils.log_error("Animation", error_message)
+            OSCLogger.log_error(address, error_message)
     
     def handle_change_effect(self, address: str, *args):
         try:
-            logger.info(f"OSC received: {address} with args: {args}")
+            OSCLogger.log_received(address, list(args))
             
             if not args or len(args) == 0:
-                logger.warning("Missing effect ID parameter")
+                OSCLogger.log_validation_failed(address, "effect_id", None, "integer")
                 return
             
             try:
                 effect_id = int(args[0])
-                logger.info(f"Changing effect to: {effect_id}")
+                LoggingUtils.log_info("Animation", f"Changing effect to: {effect_id}")
             
                 scene_info = self.scene_manager.get_scene_info()
-                available_effects = scene_info.get('available_effects', [])
-                if available_effects and effect_id not in available_effects:
-                    logger.warning(f"Effect ID {effect_id} invalid. Available effects: {available_effects}")
+                if not scene_info or scene_info.get('scene_id') is None:
+                    error_message = "No active scene for effect change"
+                    LoggingUtils.log_warning("Animation", error_message)
+                    OSCLogger.log_error(address, error_message)
+                    return
                 
-                with self._lock:
-                    dissolve_info = self.scene_manager.get_dissolve_info()
-                    use_dissolve = dissolve_info.get('enabled', False)
-                    
-                    success = self.scene_manager.set_effect(effect_id, use_dissolve=use_dissolve)
-                    if success:
-                        self._notify_state_change()
+                available_effects = scene_info.get('available_effects', [])
+                if effect_id < 0 or effect_id >= len(self.current_scene.effects):
+                    error_message = f"Effect {effect_id} not found. Available effects: {available_effects}"
+                    LoggingUtils.log_warning("Animation", error_message)
+                    OSCLogger.log_validation_failed(address, "effect_id", effect_id, f"one of {available_effects}")
+                    return
+                
+                success = self.scene_manager.change_effect(effect_id)
                 
                 if success:
-                    transition_type = "dissolve" if use_dissolve else "pattern/direct"
-                    logger.operation("change_effect", f"Successfully changed effect to {effect_id} using {transition_type}")
+                    LoggingUtils.log_info("Animation", f"Successfully changed effect to {effect_id}")
+                    AnimationLogger.log_effect_change(effect_id)
+                    self._notify_state_change()
+                    OSCLogger.log_processed(address, "success")
                 else:
-                    logger.warning(f"Failed to change effect to: {effect_id}")
+                    error_message = f"Failed to change effect to {effect_id}"
+                    LoggingUtils.log_error("Animation", error_message)
+                    OSCLogger.log_error(address, error_message)
                     
             except ValueError:
-                logger.error(f"Invalid effect ID: {args[0]} (must be an integer)")
+                OSCLogger.log_validation_failed(address, "effect_id", args[0], "integer")
                 
         except Exception as e:
-            logger.error(f"Error in handle_change_effect: {e}")
+            error_message = f"Error in handle_change_effect: {e}"
+            LoggingUtils.log_error("Animation", error_message)
+            OSCLogger.log_error(address, error_message)
     
     def handle_change_palette(self, address: str, *args):
         try:
-            logger.info(f"OSC received: {address} with args: {args}")
+            OSCLogger.log_received(address, list(args))
             
             if not args or len(args) == 0:
-                logger.warning("Missing palette ID parameter")
+                OSCLogger.log_validation_failed(address, "palette_id", None, "integer")
                 return
             
             try:
                 palette_id = int(args[0])
-                logger.info(f"Changing palette to: {palette_id}")
+                LoggingUtils.log_info("Animation", f"Changing palette to: {palette_id}")
             
                 scene_info = self.scene_manager.get_scene_info()
+                if not scene_info or scene_info.get('scene_id') is None:
+                    error_message = "No active scene for palette change"
+                    LoggingUtils.log_warning("Animation", error_message)
+                    OSCLogger.log_error(address, error_message)
+                    return
+                
                 available_palettes = scene_info.get('available_palettes', [])
                 if available_palettes and palette_id not in available_palettes:
-                    logger.warning(f"Palette ID {palette_id} invalid. Available palettes: {available_palettes}")
+                    error_message = f"Palette {palette_id} not found. Available palettes: {available_palettes}"
+                    LoggingUtils.log_warning("Animation", error_message)
+                    OSCLogger.log_validation_failed(address, "palette_id", palette_id, f"one of {available_palettes}")
+                    return
                 
-                with self._lock:
-                    dissolve_info = self.scene_manager.get_dissolve_info()
-                    use_dissolve = dissolve_info.get('enabled', False)
-                    
-                    success = self.scene_manager.set_palette(palette_id, use_dissolve=use_dissolve)
-                    if success:
-                        self._notify_state_change()
+                success = self.scene_manager.change_palette(palette_id)
                 
                 if success:
-                    transition_type = "dissolve" if use_dissolve else "pattern/direct"
-                    logger.operation("change_palette", f"Successfully changed palette to {palette_id} using {transition_type}")
+                    LoggingUtils.log_info("Animation", f"Successfully changed palette to {palette_id}")
+                    AnimationLogger.log_palette_change(palette_id)
+                    self._notify_state_change()
+                    OSCLogger.log_processed(address, "success")
                 else:
-                    logger.warning(f"Failed to change palette to: {palette_id}")
+                    error_message = f"Failed to change palette to {palette_id}"
+                    LoggingUtils.log_error("Animation", error_message)
+                    OSCLogger.log_error(address, error_message)
                     
             except ValueError:
-                logger.error(f"Invalid palette ID: {args[0]} (must be an integer)")
+                OSCLogger.log_validation_failed(address, "palette_id", args[0], "integer")
                 
         except Exception as e:
-            logger.error(f"Error in handle_change_palette: {e}")
+            error_message = f"Error in handle_change_palette: {e}"
+            LoggingUtils.log_error("Animation", error_message)
+            OSCLogger.log_error(address, error_message)
     
-    def handle_palette_color(self, address: str, palette_id: str, color_id: int, rgb: List[int]):
+    def handle_palette_color(self, address: str, palette_id: int, color_id: int, rgb: List[int]):
         try:
-            logger.info(f"OSC received: {address} with palette_id: {palette_id}, color_id: {color_id}, rgb: {rgb}")
+            LoggingUtils.log_info("Animation", f"Updating palette {palette_id} color {color_id} to RGB({rgb[0]},{rgb[1]},{rgb[2]})")
             
-            if isinstance(palette_id, str):
-                palette_int_id = ord(palette_id.upper()) - ord('A') if palette_id else 0
-                logger.info(f"Converted palette_id from '{palette_id}' to {palette_int_id}")
-            else:
-                palette_int_id = int(palette_id)
-                logger.info(f"Using palette_id: {palette_int_id}")
-        
-            if palette_int_id < 0 or palette_int_id > 4:
-                logger.warning(f"Invalid palette ID {palette_int_id} (must be 0-4)")
+            if palette_id < 0 or palette_id > 4:
+                LoggingUtils.log_warning("Animation", f"Invalid palette ID {palette_id} (must be 0-4)")
                 return
             
             if color_id < 0 or color_id > 5:
-                logger.warning(f"Invalid color ID {color_id} (must be 0-5)")
+                LoggingUtils.log_warning("Animation", f"Invalid color ID {color_id} (must be 0-5)")
                 return
             
             if len(rgb) != 3:
-                logger.warning(f"Invalid RGB values: {rgb} (must have 3 values)")
+                LoggingUtils.log_warning("Animation", f"Invalid RGB values: {rgb} (must have 3 values)")
                 return
             
             validated_rgb = []
             for i, value in enumerate(rgb):
                 if not isinstance(value, int) or value < 0 or value > 255:
-                    logger.warning(f"Invalid RGB[{i}] = {value} (must be 0-255)")
+                    LoggingUtils.log_warning("Animation", f"Invalid RGB[{i}] = {value} (must be 0-255)")
                     return
                 validated_rgb.append(value)
             
-            logger.info(f"Updating palette {palette_int_id} color {color_id} to RGB({validated_rgb[0]},{validated_rgb[1]},{validated_rgb[2]})")
-            
-            with self._lock:
-                success = self.scene_manager.update_palette_color(palette_int_id, color_id, validated_rgb)
-                if success:
-                    self._notify_state_change()
+            success = self.scene_manager.update_palette_color(palette_id, color_id, validated_rgb[0], validated_rgb[1], validated_rgb[2])
             
             if success:
-                logger.operation("palette_color", f"Successfully updated palette {palette_int_id}[{color_id}] = RGB({validated_rgb[0]},{validated_rgb[1]},{validated_rgb[2]})")
+                LoggingUtils.log_info("Animation", f"Successfully updated palette {palette_id}[{color_id}] = RGB({validated_rgb[0]},{validated_rgb[1]},{validated_rgb[2]})")
+                self._notify_state_change()
             else:
-                logger.warning(f"Failed to update palette {palette_int_id} color {color_id}")
+                LoggingUtils.log_warning("Animation", f"Failed to update palette {palette_id} color {color_id}")
                 
         except Exception as e:
-            logger.error(f"Error in handle_palette_color: {e}")
+            LoggingUtils.log_error("Animation", f"Error in handle_palette_color: {e}")
+    
+    def handle_load_dissolve_json(self, address: str, *args):
+        try:
+            OSCLogger.log_received(address, list(args))
+            
+            if not args or len(args) == 0:
+                OSCLogger.log_validation_failed(address, "file_path", None, "non-empty string")
+                return
+            
+            file_path = str(args[0])
+            LoggingUtils.log_info("Animation", f"Loading dissolve patterns from: {file_path}")
+            
+            if not file_path.lower().endswith('.json'):
+                file_path += '.json'
+                LoggingUtils.log_info("Animation", f"Appended .json extension: {file_path}")
+            
+            success = self.scene_manager.load_dissolve_json(file_path)
+            
+            if success:
+                LoggingUtils.log_info("Animation", f"Successfully loaded dissolve patterns from {file_path}")
+                AnimationLogger.log_json_loaded("dissolve")
+                self._notify_state_change()
+                OSCLogger.log_processed(address, "success")
+            else:
+                error_message = f"Failed to load dissolve patterns from {file_path}"
+                LoggingUtils.log_error("Animation", error_message)
+                OSCLogger.log_error(address, error_message)
+                
+        except Exception as e:
+            error_message = f"Error in handle_load_dissolve_json: {e}"
+            LoggingUtils.log_error("Animation", error_message)
+            OSCLogger.log_error(address, error_message)
+    
+    def handle_set_dissolve_pattern(self, address: str, *args):
+        try:
+            OSCLogger.log_received(address, list(args))
+            
+            if not args or len(args) == 0:
+                OSCLogger.log_validation_failed(address, "pattern_id", None, "integer")
+                return
+            
+            try:
+                pattern_id = int(args[0])
+                LoggingUtils.log_info("Animation", f"Setting dissolve pattern to: {pattern_id}")
+                
+                success = self.scene_manager.set_dissolve_pattern(pattern_id)
+                
+                if success:
+                    LoggingUtils.log_info("Animation", f"Successfully set dissolve pattern to {pattern_id}")
+                    self._notify_state_change()
+                    OSCLogger.log_processed(address, "success")
+                else:
+                    available = self.scene_manager.dissolve_patterns.get_available_patterns()
+                    error_message = f"Pattern {pattern_id} not found. Available: {available}"
+                    LoggingUtils.log_warning("Animation", error_message)
+                    OSCLogger.log_validation_failed(address, "pattern_id", pattern_id, f"one of {available}")
+                    
+            except ValueError:
+                OSCLogger.log_validation_failed(address, "pattern_id", args[0], "integer")
+                
+        except Exception as e:
+            error_message = f"Error in handle_set_dissolve_pattern: {e}"
+            LoggingUtils.log_error("Animation", error_message)
+            OSCLogger.log_error(address, error_message)
     
     def handle_set_dissolve_time(self, address: str, *args):
         try:
-            logger.info(f"OSC received: {address} with args: {args}")
+            OSCLogger.log_received(address, list(args))
             
             if not args or len(args) == 0:
-                logger.warning("Missing dissolve time parameter")
+                OSCLogger.log_validation_failed(address, "time_ms", None, "integer")
                 return
             
             try:
                 dissolve_time = int(args[0])
-                logger.info(f"Setting dissolve time to: {dissolve_time}ms")
                 
                 if dissolve_time < 0:
-                    logger.warning(f"Invalid dissolve time {dissolve_time} (must be >= 0)")
+                    LoggingUtils.log_warning("Animation", f"Invalid dissolve time {dissolve_time} (must be >= 0)")
                     dissolve_time = 0
                 
                 if dissolve_time > 60000: 
-                    logger.warning(f"Dissolve time {dissolve_time}ms is too large, capping at 60000ms")
+                    LoggingUtils.log_warning("Animation", f"Dissolve time {dissolve_time}ms is too large, capping at 60000ms")
                     dissolve_time = 60000
                 
                 with self._lock:
                     old_time = self.dissolve_time
                     self.dissolve_time = dissolve_time
+                    self.stats.dissolve_time = dissolve_time
                     self._notify_state_change()
                 
-                logger.operation("set_dissolve_time", f"Successfully set dissolve time from {old_time}ms to {self.dissolve_time}ms")
+                LoggingUtils.log_info("Animation", f"Successfully set dissolve time from {old_time}ms to {self.dissolve_time}ms")
+                OSCLogger.log_processed(address, "success")
                 
             except ValueError:
-                logger.error(f"Invalid dissolve time: {args[0]} (must be an integer)")
+                OSCLogger.log_validation_failed(address, "time_ms", args[0], "integer")
                 
         except Exception as e:
-            logger.error(f"Error in handle_set_dissolve_time: {e}")
+            error_message = f"Error in handle_set_dissolve_time: {e}"
+            LoggingUtils.log_error("Animation", error_message)
+            OSCLogger.log_error(address, error_message)
     
     def handle_set_speed_percent(self, address: str, *args):
         try:
-            logger.info(f"OSC received: {address} with args: {args}")
+            OSCLogger.log_received(address, list(args))
             
             if not args or len(args) == 0:
-                logger.warning("Missing speed percent parameter")
+                OSCLogger.log_validation_failed(address, "speed_percent", None, "integer")
                 return
             
             try:
                 speed_percent = int(args[0])
-                logger.info(f"Setting animation speed to: {speed_percent}%")
                 
                 if speed_percent < 0:
-                    logger.warning(f"Invalid speed percent {speed_percent} (must be >= 0)")
+                    LoggingUtils.log_warning("Animation", f"Invalid speed percent {speed_percent} (must be >= 0)")
                     speed_percent = 0
                 
                 if speed_percent > 1023:
-                    logger.warning(f"Invalid speed percent {speed_percent} (must be <= 1023)")
+                    LoggingUtils.log_warning("Animation", f"Invalid speed percent {speed_percent} (must be <= 1023)")
                     speed_percent = 1023
                 
                 with self._lock:
                     old_speed = self.speed_percent
                     self.speed_percent = speed_percent
+                    self.stats.speed_percent = speed_percent
                     self._notify_state_change()
                 
-                logger.operation("set_speed_percent", f"Successfully set animation speed from {old_speed}% to {self.speed_percent}%")
+                LoggingUtils.log_info("Animation", f"Successfully set animation speed from {old_speed}% to {self.speed_percent}%")
+                OSCLogger.log_processed(address, "success")
                 
             except ValueError:
-                logger.error(f"Invalid speed percent: {args[0]} (must be an integer)")
+                OSCLogger.log_validation_failed(address, "speed_percent", args[0], "integer")
                 
         except Exception as e:
-            logger.error(f"Error in handle_set_speed_percent: {e}")
+            error_message = f"Error in handle_set_speed_percent: {e}"
+            LoggingUtils.log_error("Animation", error_message)
+            OSCLogger.log_error(address, error_message)
     
     def handle_master_brightness(self, address: str, *args):
         try:
-            logger.info(f"OSC received: {address} with args: {args}")
+            OSCLogger.log_received(address, list(args))
             
             if not args or len(args) == 0:
-                logger.warning("Missing brightness parameter")
+                OSCLogger.log_validation_failed(address, "brightness", None, "integer")
                 return
             
             try:
                 brightness = int(args[0])
-                logger.info(f"Setting master brightness to: {brightness}")
                 
-                # Validate brightness (0-255)
                 if brightness < 0:
-                    logger.warning(f"Invalid brightness {brightness} (must be >= 0)")
+                    LoggingUtils.log_warning("Animation", f"Invalid brightness {brightness} (must be >= 0)")
                     brightness = 0
                 
                 if brightness > 255:
-                    logger.warning(f"Invalid brightness {brightness} (must be <= 255)")
+                    LoggingUtils.log_warning("Animation", f"Invalid brightness {brightness} (must be <= 255)")
                     brightness = 255
                 
                 with self._lock:
                     old_brightness = self.master_brightness
                     self.master_brightness = brightness
+                    self.stats.master_brightness = brightness
                     self._notify_state_change()
                 
-                logger.operation("master_brightness", f"Successfully set master brightness from {old_brightness} to {self.master_brightness}")
+                LoggingUtils.log_info("Animation", f"Successfully set master brightness from {old_brightness} to {self.master_brightness}")
+                OSCLogger.log_processed(address, "success")
                 
             except ValueError:
-                logger.error(f"Invalid brightness: {args[0]} (must be an integer)")
+                OSCLogger.log_validation_failed(address, "brightness", args[0], "integer")
                 
         except Exception as e:
-            logger.error(f"Error in handle_master_brightness: {e}")
+            error_message = f"Error in handle_master_brightness: {e}"
+            LoggingUtils.log_error("Animation", error_message)
+            OSCLogger.log_error(address, error_message)
 
     def get_dissolve_info(self) -> Dict[str, Any]:
         """Get dissolve system information"""
         dissolve_manager_info = {
-            "manager_enabled": self.dissolve_manager.enabled,
-            "manager_current_pattern_id": self.dissolve_manager.current_pattern_id,
-            "manager_available_patterns": self.dissolve_manager.get_available_patterns(),
-            "manager_pattern_count": len(self.dissolve_manager.patterns)
+            "manager_enabled": hasattr(self.dissolve_manager, 'patterns') and len(self.dissolve_manager.patterns) > 0,
+            "manager_current_pattern_id": getattr(self.dissolve_manager, 'current_pattern_id', None),
+            "manager_available_patterns": getattr(self.dissolve_manager, 'patterns', {}).keys() if hasattr(self.dissolve_manager, 'patterns') else [],
+            "manager_pattern_count": len(getattr(self.dissolve_manager, 'patterns', {}))
         }
         
         scene_dissolve_info = self.scene_manager.get_dissolve_info()

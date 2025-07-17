@@ -46,9 +46,6 @@ class Scene:
         self.effects[effect.effect_id] = effect
         
     def get_current_effect(self) -> Optional[Effect]:
-        """
-        Get the currently active effect using zero-origin indexing
-        """
         if 0 <= self.current_effect_id < len(self.effects):
             return self.effects[self.current_effect_id]
         return None
