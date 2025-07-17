@@ -8,56 +8,98 @@ from src.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-
 class ColorUtils:
-    """Centralized color calculation utilities"""
+    
+    _led_contributions = {} 
+    
+    @staticmethod
+    def reset_frame_contributions():
+        """Reset contributions for new frame - call before rendering all segments"""
+        ColorUtils._led_contributions.clear()
+    
+    @staticmethod
+    def add_colors_to_led_array(led_array, led_index: int, color, weight: float = 1.0):
+        """Add color contribution for averaging - replaces old additive method"""
+        if led_index < 0 or led_index >= len(led_array):
+            return
+            
+        # Always store contribution for averaging
+        if led_index not in ColorUtils._led_contributions:
+            ColorUtils._led_contributions[led_index] = []
+        ColorUtils._led_contributions[led_index].append((color[:3], weight))
+    
+    @staticmethod
+    def finalize_frame_blending(led_array):
+        """Calculate final averaged colors for all LEDs"""
+        for led_index, contributions in ColorUtils._led_contributions.items():
+            if led_index < 0 or led_index >= len(led_array):
+                continue
+                
+            if len(contributions) == 1:
+                color, _ = contributions[0]
+                led_array[led_index] = [min(255, max(0, int(c))) for c in color[:3]]
+            else:
+                total_weight = sum(weight for _, weight in contributions)
+                if total_weight > 0:
+                    avg_r = sum(color[0] * weight for color, weight in contributions) / total_weight
+                    avg_g = sum(color[1] * weight for color, weight in contributions) / total_weight
+                    avg_b = sum(color[2] * weight for color, weight in contributions) / total_weight
+                    
+                    led_array[led_index] = [
+                        min(255, max(0, int(avg_r))),
+                        min(255, max(0, int(avg_g))),
+                        min(255, max(0, int(avg_b)))
+                    ]
+                else:
+                    led_array[led_index] = [0, 0, 0]
 
     @staticmethod
-    def validate_rgb_color(color: List[int]) -> List[int]:
-        """Validate and sanitize RGB color values"""
-        if not isinstance(color, (list, tuple)) or len(color) < 3:
+    def clamp_color_value(value: int) -> int:
+        """Clamp color value to 0-255 range"""
+        return max(0, min(255, int(value)))
+    
+    @staticmethod
+    def clamp_color(color) -> list:
+        """Clamp all RGB values to 0-255 range"""
+        return [ColorUtils.clamp_color_value(c) for c in color[:3]]
+    
+    @staticmethod
+    def validate_rgb_color(color) -> list:
+        """Validate and clamp RGB color"""
+        if not color or len(color) < 3:
             return [0, 0, 0]
-        
-        return [max(0, min(255, int(c))) for c in color[:3]]
+        return ColorUtils.clamp_color(color)
     
     @staticmethod
-    def get_palette_color(palette: List[List[int]], color_index: int) -> List[int]:
-        """Get color from palette with validation"""
-        if not palette or not (0 <= color_index < len(palette)):
+    def apply_transparency(color, transparency: float) -> list:
+        """Apply transparency to color"""
+        transparency = max(0.0, min(1.0, transparency))
+        alpha_factor = 1.0 - transparency
+        return [int(c * alpha_factor) for c in color]
+    
+    @staticmethod
+    def apply_brightness(color, brightness: float) -> list:
+        """Apply brightness to color"""
+        brightness = max(0.0, min(1.0, brightness))
+        return [int(c * brightness) for c in color]
+    
+    @staticmethod
+    def calculate_segment_color(base_color, transparency: float, brightness: float) -> list:
+        """Calculate final segment color with transparency and brightness"""
+        color = ColorUtils.clamp_color(base_color)
+        color = ColorUtils.apply_transparency(color, transparency)
+        color = ColorUtils.apply_brightness(color, brightness)
+        return color
+    
+    @staticmethod
+    def get_palette_color(palette, color_index: int) -> list:
+        """Get color from palette with index validation"""
+        if not palette or color_index < 0 or color_index >= len(palette):
             return [0, 0, 0]
-        
-        palette_color = palette[color_index]
-        if len(palette_color) >= 3:
-            return palette_color[:3]
-        else:
-            return [0, 0, 0]
+        return palette[color_index][:3] if len(palette[color_index]) >= 3 else [0, 0, 0]
     
     @staticmethod
-    def apply_transparency(base_color: List[int], transparency: float) -> List[int]:
-        """
-        Apply transparency to base color
-        transparency: 0.0 = opaque (full color), 1.0 = transparent (no color)
-        """
-        if transparency < 0.0 or transparency > 1.0:
-            logger.warning(f"Invalid transparency {transparency}, clamping to [0.0, 1.0]")
-            transparency = max(0.0, min(1.0, transparency))
-        
-        opacity = 1.0 - transparency
-        
-        return [int(c * opacity) for c in base_color]
-    
-    @staticmethod
-    def apply_brightness(color: List[int], brightness_factor: float) -> List[int]:
-        """Apply brightness factor to color"""
-        if brightness_factor < 0.0:
-            brightness_factor = 0.0
-        elif brightness_factor > 1.0:
-            brightness_factor = 1.0
-        
-        return [int(c * brightness_factor) for c in color]
-    
-    @staticmethod
-    def apply_master_brightness(color: List[int], master_brightness: int) -> List[int]:
+    def apply_master_brightness(color, master_brightness: int) -> list:
         """Apply master brightness (0-255) to color"""
         if master_brightness < 0:
             master_brightness = 0
@@ -71,7 +113,7 @@ class ColorUtils:
         return [int(c * brightness_factor) for c in color]
     
     @staticmethod
-    def apply_fade_factor(color: List[int], fade_factor: float) -> List[int]:
+    def apply_fade_factor(color, fade_factor: float) -> list:
         """Apply fade factor for fractional positioning"""
         if fade_factor < 0.0:
             fade_factor = 0.0
@@ -81,18 +123,7 @@ class ColorUtils:
         return [int(c * fade_factor) for c in color]
     
     @staticmethod
-    def calculate_segment_color(base_color: List[int], transparency: float, brightness_factor: float) -> List[int]:
-        """
-        Calculate final segment color with transparency and brightness
-        """
-        validated_color = ColorUtils.validate_rgb_color(base_color)
-        color_with_transparency = ColorUtils.apply_transparency(validated_color, transparency)
-        final_color = ColorUtils.apply_brightness(color_with_transparency, brightness_factor)
-        
-        return ColorUtils.validate_rgb_color(final_color)
-    
-    @staticmethod
-    def calculate_transition_color(from_color: List[int], to_color: List[int], progress: float) -> List[int]:
+    def calculate_transition_color(from_color, to_color, progress: float) -> list:
         """Calculate blended color for transitions"""
         if progress < 0.0:
             progress = 0.0
@@ -110,12 +141,8 @@ class ColorUtils:
         return ColorUtils.validate_rgb_color(blended)
     
     @staticmethod
-    def calculate_fractional_fade_color(color: List[int], fractional_part: float, is_first: bool, is_last: bool) -> List[int]:
-        """
-        Calculate color with fractional positioning fade effect
-        is_first: LED đầu tiên trong segment
-        is_last: LED cuối cùng trong segment
-        """
+    def calculate_fractional_fade_color(color, fractional_part: float, is_first: bool, is_last: bool) -> list:
+        """Calculate color with fractional positioning fade effect"""
         if len([True for x in [is_first, is_last] if x]) > 1:
             fade_factor = 1.0
         elif is_first:
@@ -128,28 +155,13 @@ class ColorUtils:
         return ColorUtils.apply_fade_factor(color, fade_factor)
     
     @staticmethod
-    def add_colors_to_led_array(led_array: List[List[int]], led_index: int, color: List[int]) -> None:
-        """
-        Add color to LED array with bounds checking and color addition
-        """
-        if led_index < 0 or led_index >= len(led_array):
-            return
-        
-        color = ColorUtils.validate_rgb_color(color)
-        
-        for j in range(min(3, len(color), len(led_array[led_index]))):
-            led_array[led_index][j] = min(255, led_array[led_index][j] + color[j])
-    
-    @staticmethod
-    def count_active_leds(led_colors: List[List[int]]) -> int:
+    def count_active_leds(led_colors) -> int:
         """Count LEDs with at least one RGB channel > 0"""
         return sum(1 for color in led_colors if any(c > 0 for c in color[:3]))
     
     @staticmethod
-    def apply_colors_to_array(led_colors: List[List[int]], master_brightness: int = 255) -> List[List[int]]:
-        """
-        Apply master brightness to entire LED array
-        """
+    def apply_colors_to_array(led_colors, master_brightness: int = 255) -> list:
+        """Apply master brightness to entire LED array"""
         if master_brightness == 255:
             return led_colors
         
@@ -157,5 +169,3 @@ class ColorUtils:
             ColorUtils.apply_master_brightness(color, master_brightness)
             for color in led_colors
         ]
-
- 

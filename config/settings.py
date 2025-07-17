@@ -111,20 +111,6 @@ class AnimationConfig(BaseModel):
         return v
 
 
-class PatternTransitionConfig(BaseModel):
-    """
-    Pattern transition configuration for smooth effect changes
-    """
-    enabled: bool = Field(default=True, description="Enable pattern transitions")
-    default_fade_in_ms: int = Field(default=200, description="Default fade-in time", ge=0, le=5000)
-    default_fade_out_ms: int = Field(default=200, description="Default fade-out time", ge=0, le=5000)
-    default_waiting_ms: int = Field(default=100, description="Default waiting time", ge=0, le=1000)
-    
-    smooth_transitions: bool = Field(default=True, description="Use smooth interpolation")
-    transition_curve: str = Field(default="linear", description="Transition curve: linear, ease_in, ease_out, ease_in_out")
-    minimum_transition_brightness: float = Field(default=0.1, description="Minimum brightness during transitions")
-
-
 class DissolveConfig(BaseModel):
     """
     Dissolve transition system configuration
@@ -218,7 +204,6 @@ class EngineSettings:
         """Initialize settings from file or defaults"""
         self.OSC = OSCConfig()
         self.ANIMATION = AnimationConfig()
-        self.PATTERN_TRANSITION = PatternTransitionConfig()
         self.DISSOLVE = DissolveConfig()
         self.LOGGING = LoggingConfig()
         self.FPS_BALANCER = FPSBalancerConfig()

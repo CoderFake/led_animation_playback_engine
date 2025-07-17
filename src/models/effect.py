@@ -5,7 +5,7 @@ Effect model -  tructure with zero-origin IDs
 from typing import Dict, List, Any
 from dataclasses import dataclass, field
 import time
-
+from src.utils.color_utils import ColorUtils
 from .segment import Segment
 
 
@@ -37,8 +37,15 @@ class Effect:
         """
         Render all segments to LED array with timing and fractional positioning
         """
+        ColorUtils.reset_frame_contributions()
+    
+        for led in led_array:
+            led[0] = led[1] = led[2] = 0
+        
         for segment in self.segments.values():
             segment.render_to_led_array(palette, current_time, led_array)
+        
+        ColorUtils.finalize_frame_blending(led_array)
     
     def get_led_output(self, palette: List[List[int]]) -> List[List[int]]:
         """

@@ -82,7 +82,7 @@ class AnimationEngine:
        
     def get_current_led_count(self) -> int:
         try:
-            scene_info = self.scene_manager.get_current_scene_info()
+            scene_info = self.scene_manager.get_scene_info()
             return scene_info.get('led_count', EngineSettings.ANIMATION.led_count)
         except Exception:
             return EngineSettings.ANIMATION.led_count
@@ -98,7 +98,6 @@ class AnimationEngine:
             "/set_dissolve_time": self.handle_set_dissolve_time,
             "/set_speed_percent": self.handle_set_speed_percent,
             "/master_brightness": self.handle_master_brightness,
-            "/pattern_transition": self.handle_pattern_transition_config,
         }
         
         for address, handler in handlers.items():
@@ -195,7 +194,7 @@ class AnimationEngine:
     
     def _check_scenes_available(self) -> bool:
         try:
-            scene_info = self.scene_manager.get_current_scene_info()
+            scene_info = self.scene_manager.get_scene_info()
             return scene_info.get('scene_id') is not None
         except Exception:
             return False
@@ -471,7 +470,7 @@ class AnimationEngine:
                 logger.error(f"Error in state callback: {e}")
     
     def get_scene_info(self) -> Dict[str, Any]:
-        return self.scene_manager.get_current_scene_info()
+        return self.scene_manager.get_scene_info()
     
     def set_target_fps(self, target_fps: float, propagate_to_balancer: bool = True):
         """Set target FPS và cập nhật FPS balancer nếu cần"""
@@ -504,7 +503,6 @@ class AnimationEngine:
     def handle_load_json(self, address: str, *args):
         try:
             OSCLogger.log_received(address, list(args))
-            
             if not args or len(args) == 0:
                 OSCLogger.log_validation_failed(address, "file_path", None, "non-empty string")
                 return
@@ -628,7 +626,7 @@ class AnimationEngine:
             try:
                 scene_id = int(args[0])
                 
-                scene_info = self.scene_manager.get_current_scene_info()
+                scene_info = self.scene_manager.get_scene_info()
                 available_scenes = scene_info.get('available_scenes', [])
                 if available_scenes and scene_id not in available_scenes:
                     OSCLogger.log_validation_failed(address, "scene_id", scene_id, f"one of {available_scenes}")
@@ -667,7 +665,7 @@ class AnimationEngine:
                 effect_id = int(args[0])
                 logger.info(f"Changing effect to: {effect_id}")
             
-                scene_info = self.scene_manager.get_current_scene_info()
+                scene_info = self.scene_manager.get_scene_info()
                 available_effects = scene_info.get('available_effects', [])
                 if available_effects and effect_id not in available_effects:
                     logger.warning(f"Effect ID {effect_id} invalid. Available effects: {available_effects}")
@@ -704,7 +702,7 @@ class AnimationEngine:
                 palette_id = int(args[0])
                 logger.info(f"Changing palette to: {palette_id}")
             
-                scene_info = self.scene_manager.get_current_scene_info()
+                scene_info = self.scene_manager.get_scene_info()
                 available_palettes = scene_info.get('available_palettes', [])
                 if available_palettes and palette_id not in available_palettes:
                     logger.warning(f"Palette ID {palette_id} invalid. Available palettes: {available_palettes}")
@@ -873,48 +871,7 @@ class AnimationEngine:
                 
         except Exception as e:
             logger.error(f"Error in handle_master_brightness: {e}")
-    
-    def handle_pattern_transition_config(self, address: str, *args):
-        try:
-            logger.info(f"OSC received: {address} with args: {args}")
-            
-            if len(args) < 3:
-                logger.warning("Missing pattern transition config parameters. Expected: fade_in_ms fade_out_ms waiting_ms")
-                return
-            
-            try:
-                fade_in_ms = int(args[0])
-                fade_out_ms = int(args[1])
-                waiting_ms = int(args[2])
-                
-                logger.info(f"Configuring pattern transition: fade_in={fade_in_ms}ms, fade_out={fade_out_ms}ms, waiting={waiting_ms}ms")
-                
-                if fade_in_ms < 0:
-                    logger.warning(f"Invalid fade_in_ms {fade_in_ms} (must be >= 0)")
-                    fade_in_ms = 0
-                
-                if fade_out_ms < 0:
-                    logger.warning(f"Invalid fade_out_ms {fade_out_ms} (must be >= 0)")
-                    fade_out_ms = 0
-                
-                if waiting_ms < 0:
-                    logger.warning(f"Invalid waiting_ms {waiting_ms} (must be >= 0)")
-                    waiting_ms = 0
-                
-                self.scene_manager.set_transition_config(
-                    fade_in_ms=fade_in_ms,
-                    fade_out_ms=fade_out_ms,
-                    waiting_ms=waiting_ms
-                )
-                
-                logger.operation("pattern_transition_config", f"Successfully configured: fade_in={fade_in_ms}ms, fade_out={fade_out_ms}ms, waiting={waiting_ms}ms")
-                
-            except ValueError:
-                logger.error(f"Invalid pattern transition config values: {args} (must be integers)")
-                
-        except Exception as e:
-            logger.error(f"Error in handle_pattern_transition_config: {e}")
-    
+
     def get_dissolve_info(self) -> Dict[str, Any]:
         """Get dissolve system information"""
         dissolve_manager_info = {

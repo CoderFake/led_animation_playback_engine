@@ -204,7 +204,6 @@ class AnimationLogger:
     def log_parameter_change(param_name: str, value: Any, scene_id: int = None):
         """Log parameter change"""
         logger = AnimationLogger._get_logger()
-        message = f"Parameter changed (parameter={param_name}, value={value}"
         if scene_id is not None:
             message += f", scene_id={scene_id}"
         message += ")"

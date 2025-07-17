@@ -28,71 +28,55 @@ class EngineStats:
 
 
 class DissolvePatternManager:
+    """Manager for dissolve patterns loaded from JSON"""
     
     def __init__(self):
         self.patterns: Dict[int, List[List[int]]] = {}
-        self.current_pattern_id: int = 0
-        self.enabled: bool = True
-        
-    def load_patterns_from_file(self, file_path: str) -> bool:
+        self.current_pattern_id: Optional[int] = None
+    
+    def load_patterns_from_json(self, file_path: str) -> bool:
+        """Load dissolve patterns from JSON file"""
         try:
-            file_path_obj = Path(file_path)
-            if not file_path_obj.exists():
-                logger.error(f"Dissolve pattern file not found: {file_path}")
-                return False
-            
+            import json
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            if "dissolve_patterns" not in data:
-                logger.error(f"File {file_path} missing 'dissolve_patterns' key")
+            if 'dissolve_patterns' not in data:
                 return False
             
-            patterns_data = data["dissolve_patterns"]
-            pattern_keys = list(patterns_data.keys())
-            if len(pattern_keys) != len(set(pattern_keys)):
-                logger.error("Invalid JSON") 
-                return False
             self.patterns.clear()
             
-            for pattern_id_str, pattern_data in patterns_data.items():
+            for pattern_id_str, pattern_data in data['dissolve_patterns'].items():
                 try:
                     pattern_id = int(pattern_id_str)
                     if isinstance(pattern_data, list):
                         self.patterns[pattern_id] = pattern_data
-                        logger.debug(f"Loaded dissolve pattern {pattern_id}: {len(pattern_data)} transitions")
-                    else:
-                        logger.warning(f"Invalid pattern data format for pattern {pattern_id}")
-                except ValueError:
-                    logger.warning(f"Invalid pattern ID: {pattern_id_str}")
+                except (ValueError, TypeError):
                     continue
             
-            logger.info(f"Loaded {len(self.patterns)} dissolve patterns from {file_path}")
-            return True
+            return len(self.patterns) > 0
             
         except Exception as e:
-            logger.error(f"Error loading dissolve patterns: {e}")
             return False
     
     def get_pattern(self, pattern_id: int) -> Optional[List[List[int]]]:
+        """Get pattern by ID"""
         return self.patterns.get(pattern_id)
     
     def set_current_pattern(self, pattern_id: int) -> bool:
+        """Set current dissolve pattern"""
         if pattern_id in self.patterns:
             self.current_pattern_id = pattern_id
-            logger.info(f"Current dissolve pattern set to {pattern_id}")
             return True
-        else:
-            logger.warning(f"Dissolve pattern {pattern_id} not found")
-            return False
+        return False
     
     def get_available_patterns(self) -> List[int]:
+        """Get list of available pattern IDs"""
         return list(self.patterns.keys())
-
 
 @dataclass
 class DissolveTransition:
-    """Active dissolve transition state with per-LED timing"""
+    """Dissolve transition with simultaneous crossfade"""
     is_active: bool = False
     phase: DissolvePhase = DissolvePhase.COMPLETED
     
@@ -111,27 +95,36 @@ class DissolveTransition:
     
     led_states: List[Dict[str, Any]] = None 
     
+    from_led_array: List[List[int]] = None
+    to_led_array: List[List[int]] = None
+    
     def __post_init__(self):
-        """Initialize LED states"""
+        """Initialize LED states and arrays"""
         if self.led_states is None:
             self.led_states = []
         self._initialize_led_states()
+        
+        if self.from_led_array is None:
+            self.from_led_array = [[0, 0, 0] for _ in range(self.led_count)]
+        if self.to_led_array is None:
+            self.to_led_array = [[0, 0, 0] for _ in range(self.led_count)]
     
     def _initialize_led_states(self):
-        """Initialize per-LED dissolve states"""
+        """Initialize per-LED crossfade states"""
         self.led_states = []
         for i in range(self.led_count):
             self.led_states.append({
-                'phase': 'waiting',
-                'start_time': 0.0,
-                'duration_ms': 0,
-                'progress': 0.0,
+                'phase': 'waiting',          
+                'crossfade_start': 0.0,     
+                'crossfade_duration': 0,    
+                'crossfade_progress': 0.0,  
                 'from_color': [0, 0, 0],
                 'to_color': [0, 0, 0]
             })
     
-    def start_dissolve(self, pattern_data: List[List[int]], led_count: int):
-        """Start dissolve transition with dynamic LED count support"""
+    def start_dissolve(self, pattern_data: List[List[int]], led_count: int, 
+                      from_led_array: List[List[int]], to_led_array: List[List[int]]):
+        """Start dissolve transition with crossfade"""
         self.pattern_data = pattern_data
         
         if self.led_count != led_count:
@@ -142,6 +135,14 @@ class DissolveTransition:
             if not self.led_states or len(self.led_states) != led_count:
                 self._initialize_led_states()
         
+        self.from_led_array = [color[:3] for color in from_led_array]
+        self.to_led_array = [color[:3] for color in to_led_array]
+        
+        while len(self.from_led_array) < self.led_count:
+            self.from_led_array.append([0, 0, 0])
+        while len(self.to_led_array) < self.led_count:
+            self.to_led_array.append([0, 0, 0])
+        
         self.start_time = time.time()
         
         if not pattern_data:
@@ -149,13 +150,13 @@ class DissolveTransition:
             self.is_active = False
             return
         
-        self.phase = DissolvePhase.DISSOLVING
+        self.phase = DissolvePhase.CROSSFADING
         self.is_active = True
         
-        self._setup_led_timing()
+        self._setup_crossfade_timing()
 
-    def _setup_led_timing(self):
-        """Setup timing with enhanced validation for large LED counts"""
+    def _setup_crossfade_timing(self):
+        """Setup crossfade timing for each LED range"""
         if not self.pattern_data:
             return
         
@@ -168,145 +169,89 @@ class DissolveTransition:
             start_led = max(0, min(start_led, self.led_count - 1))
             end_led = max(start_led, min(end_led, self.led_count - 1))
             
-            range_size = end_led - start_led + 1
-            if range_size > self.led_count // 2:  
-                logger.warning(f"Large dissolve range: {range_size} LEDs ({start_led}-{end_led})")
+          
+            crossfade_start = self.start_time + (delay_ms / 1000.0)
+            crossfade_duration = duration_ms
             
-            start_time = self.start_time + (delay_ms / 1000.0)
-            
-            batch_size = 1000  
-            for batch_start in range(start_led, end_led + 1, batch_size):
-                batch_end = min(batch_start + batch_size - 1, end_led)
-                
-                for led_idx in range(batch_start, batch_end + 1):
-                    if led_idx < len(self.led_states):
-                        led_state = self.led_states[led_idx]
-                        
-                        if (led_state['start_time'] == 0.0 or 
-                            start_time < led_state['start_time']):
-                            led_state['start_time'] = start_time
-                            led_state['duration_ms'] = duration_ms
+            for led_idx in range(start_led, end_led + 1):
+                if led_idx < len(self.led_states):
+                    led_state = self.led_states[led_idx]
+                    
+                    if led_state['crossfade_start'] == 0.0:
+                        led_state['crossfade_start'] = crossfade_start
+                        led_state['crossfade_duration'] = crossfade_duration
+                        led_state['from_color'] = self.from_led_array[led_idx][:3]
+                        led_state['to_color'] = self.to_led_array[led_idx][:3]
                         led_state['phase'] = 'waiting'
     
     def _validate_transition_data(self, transition) -> bool:
         """Validate transition data format and values"""
         if not isinstance(transition, (list, tuple)) or len(transition) != 4:
-            logger.warning(f"Invalid transition format: {transition} (expected [delay_ms, duration_ms, start_led, end_led])")
             return False
         
         delay_ms, duration_ms, start_led, end_led = transition
         
         if not all(isinstance(x, (int, float)) for x in [delay_ms, duration_ms]):
-            logger.warning(f"Invalid timing data types: delay_ms={delay_ms}, duration_ms={duration_ms}")
             return False
         
         if not all(isinstance(x, int) for x in [start_led, end_led]):
-            logger.warning(f"Invalid LED index types: start_led={start_led}, end_led={end_led} (must be integers)")
             return False
         
-        if delay_ms < 0:
-            logger.warning(f"Invalid delay_ms: {delay_ms} (must be >= 0)")
-            return False
-        
-        if duration_ms <= 0:
-            logger.warning(f"Invalid duration_ms: {duration_ms} (must be > 0)")
+        if delay_ms < 0 or duration_ms <= 0:
             return False
         
         return True
     
-    def update_dissolve(self, current_time: float, from_colors: List[List[int]], to_colors: List[List[int]]):
-        """Update dissolve transition state"""
-        if not self.is_active or self.phase != DissolvePhase.DISSOLVING:
-            return
+    def update_dissolve(self, current_time: float) -> List[List[int]]:
+        """Update crossfade and return blended LED array"""
+        if not self.is_active or self.phase != DissolvePhase.CROSSFADING:
+            return self.to_led_array
         
+        result_array = [[0, 0, 0] for _ in range(self.led_count)]
         all_completed = True
         
-        for led_idx in range(min(len(self.led_states), len(from_colors), len(to_colors))):
+        for led_idx in range(self.led_count):
             led_state = self.led_states[led_idx]
+            from_color = led_state['from_color']
+            to_color = led_state['to_color']
             
             if led_state['phase'] == 'waiting':
-                if current_time >= led_state['start_time']:
-                    led_state['phase'] = 'dissolving'
-                    led_state['from_color'] = from_colors[led_idx][:3]
-                    led_state['to_color'] = to_colors[led_idx][:3]
-                    elapsed_ms = (current_time - led_state['start_time']) * 1000
-                    led_state['progress'] = elapsed_ms / led_state['duration_ms'] if led_state['duration_ms'] > 0 else 1.0
+                if current_time >= led_state['crossfade_start']:
+                    led_state['phase'] = 'crossfading'
+                    all_completed = False
                 else:
+                    result_array[led_idx] = from_color[:]
                     all_completed = False
             
-            elif led_state['phase'] == 'dissolving':
-                elapsed_ms = (current_time - led_state['start_time']) * 1000
+            elif led_state['phase'] == 'crossfading':
+                elapsed_ms = (current_time - led_state['crossfade_start']) * 1000
                 
-                if elapsed_ms >= led_state['duration_ms']:
+                if elapsed_ms >= led_state['crossfade_duration']:
                     led_state['phase'] = 'completed'
-                    led_state['progress'] = 1.0
+                    led_state['crossfade_progress'] = 1.0
+                    result_array[led_idx] = to_color[:]
                 else:
-                    led_state['progress'] = elapsed_ms / led_state['duration_ms'] if led_state['duration_ms'] > 0 else 1.0
+                    progress = elapsed_ms / led_state['crossfade_duration']
+                    led_state['crossfade_progress'] = min(1.0, max(0.0, progress))
+                    
+                    old_factor = 1.0 - led_state['crossfade_progress']
+                    new_factor = led_state['crossfade_progress']
+                    
+                    result_array[led_idx] = [
+                        int(from_color[0] * old_factor + to_color[0] * new_factor),
+                        int(from_color[1] * old_factor + to_color[1] * new_factor),
+                        int(from_color[2] * old_factor + to_color[2] * new_factor)
+                    ]
                     all_completed = False
+            
+            elif led_state['phase'] == 'completed':
+                result_array[led_idx] = to_color[:]
+            
+            else:
+                result_array[led_idx] = to_color[:]
         
         if all_completed:
             self.phase = DissolvePhase.COMPLETED
             self.is_active = False
-    
-    def get_led_output(self, from_colors: List[List[int]], to_colors: List[List[int]]) -> List[List[int]]:
-        """Get blended LED output with array size safety"""
-        if not self.is_active or self.phase != DissolvePhase.DISSOLVING:
-            return to_colors
         
-        min_size = min(len(self.led_states), len(from_colors), len(to_colors), self.led_count)
-        if min_size <= 0:
-            return to_colors
-        
-        output = []
-        
-        for led_idx in range(min_size):
-            led_state = self.led_states[led_idx]
-            
-            from_color = from_colors[led_idx][:3] if led_idx < len(from_colors) and len(from_colors[led_idx]) >= 3 else [0, 0, 0]
-            to_color = to_colors[led_idx][:3] if led_idx < len(to_colors) and len(to_colors[led_idx]) >= 3 else [0, 0, 0]
-            
-            if led_state['phase'] == 'waiting':
-                output.append(from_color)
-            elif led_state['phase'] == 'dissolving':
-                progress = max(0.0, min(1.0, led_state['progress'])) 
-                
-                if 'from_color' in led_state and 'to_color' in led_state:
-                    stored_from = led_state['from_color']
-                    stored_to = led_state['to_color']
-                else:
-                    stored_from = from_color
-                    stored_to = to_color
-                
-                blended = ColorUtils.calculate_transition_color(stored_from, stored_to, progress)
-                output.append(blended)
-            else: 
-                output.append(to_color)
-        
-        return output
-
-@dataclass  
-class PatternTransition:
-    """Active pattern transition state"""
-    is_active: bool = False
-    phase: TransitionPhase = TransitionPhase.COMPLETED
-    
-    from_effect_id: int = None
-    from_palette_id: int = None
-    to_effect_id: int = None
-    to_palette_id: int = None
-    
-    start_time: float = 0.0
-    fade_in_ms: int = 200
-    fade_out_ms: int = 200
-    waiting_ms: int = 100
-    
-    phase_start_time: float = 0.0
-    progress: float = 0.0
-
-
-@dataclass
-class PatternTransitionConfig:
-    """Configuration for pattern transitions"""
-    fade_in_ms: int = 200
-    fade_out_ms: int = 200
-    waiting_ms: int = 100
+        return result_array

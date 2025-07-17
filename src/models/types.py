@@ -10,6 +10,6 @@ class TransitionPhase(Enum):
 
 class DissolvePhase(Enum):
     """Dissolve transition phases"""
-    PREPARING = "preparing"
-    DISSOLVING = "dissolving"
+    WAITING = "waiting"
+    CROSSFADING = "crossfading"  
     COMPLETED = "completed"

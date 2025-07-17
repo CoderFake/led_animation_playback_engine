@@ -220,9 +220,8 @@ class Segment:
         except Exception as e:
             return []
     
-    def render_to_led_array(self, palette: List[List[int]], current_time: float, 
-                        led_array: List[List[int]]) -> None:
-        """Render segment to LED array with improved boundary checking"""
+    def render_to_led_array(self, palette, current_time: float, led_array) -> None:
+        """Render segment to LED array with average blending for overlaps"""
         segment_colors = self.get_led_colors_with_timing(palette, current_time)
         
         if not segment_colors:
@@ -270,16 +269,21 @@ class Segment:
                 if not isinstance(color, (list, tuple)) or len(color) < 3:
                     continue
                 
+                weight = 1.0
+                final_color = ColorUtils.validate_rgb_color(color)
+                
                 if len(segment_colors) > 1 and fractional_part > 0:
                     is_first = (i == 0)
                     is_last = (i == len(segment_colors) - 1)
-                    faded_color = ColorUtils.calculate_fractional_fade_color(
-                        color, fractional_part, is_first, is_last
-                    )
-                else:
-                    faded_color = ColorUtils.validate_rgb_color(color)
+                    
+                    if is_first:
+                        weight = fractional_part
+                        final_color = ColorUtils.apply_brightness(color, fractional_part)
+                    elif is_last:
+                        weight = 1.0 - fractional_part  
+                        final_color = ColorUtils.apply_brightness(color, 1.0 - fractional_part)
                 
-                ColorUtils.add_colors_to_led_array(led_array, led_index, faded_color)
+                ColorUtils.add_colors_to_led_array(led_array, led_index, final_color, weight)
                         
         except Exception as e:
             import sys
