@@ -704,6 +704,19 @@ class SceneManager:
                 "available_palettes": list(range(len(scene.palettes)))
             }
     
+    def get_active_effects_count(self) -> int:
+        """Get number of active effects for FPS balancer"""
+        try:
+            with self._lock:
+                if self.active_scene_id is None or self.active_scene_id not in self.scenes:
+                    return 0
+                
+                return len(self.scenes[self.active_scene_id].effects)
+                
+        except Exception as e:
+            logger.error(f"Error getting active effects count: {e}")
+            return 0
+    
     def switch_scene(self, scene_id: int, use_dissolve: bool = False) -> bool:
         """Switch to a different scene using zero-origin ID"""
         try:

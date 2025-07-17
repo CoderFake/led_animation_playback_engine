@@ -143,6 +143,15 @@ class LoggingConfig(BaseModel):
         return v.upper()
 
 
+class FPSBalancerConfig(BaseModel):
+    """
+    FPS Balancer configuration for adaptive performance management
+    """
+    enabled: bool = Field(default=True, description="Enable FPS balancer")
+    target_fps_tolerance: float = Field(default=0.95, description="FPS tolerance (0.95 = 95% of target)", ge=0.8, le=1.0)
+    adjustment_interval: float = Field(default=1.0, description="Check interval in seconds", ge=0.5, le=5.0)
+
+
 class PerformanceConfig(BaseModel):
     """
     Performance monitoring and optimization configuration
@@ -191,6 +200,7 @@ class EngineSettings:
         self.PATTERN_TRANSITION = PatternTransitionConfig()
         self.DISSOLVE = DissolveConfig()
         self.LOGGING = LoggingConfig()
+        self.FPS_BALANCER = FPSBalancerConfig()
         self.PERFORMANCE = PerformanceConfig()
         self.BACKGROUND = BackgroundConfig()
         

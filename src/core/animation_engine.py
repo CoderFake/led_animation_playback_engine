@@ -18,6 +18,7 @@ from .osc_handler import OSCHandler
 from config.settings import EngineSettings
 from src.utils.logger import ComponentLogger
 from src.utils.performance import PerformanceMonitor, ProfilerManager
+from src.utils.fps_balancer import FPSBalancer
 from src.utils.logging import AnimationLogger, OSCLogger, LoggingUtils, PerformanceTracker
 from src.utils.validation import ValidationUtils
 from src.utils.color_utils import ColorUtils
@@ -37,6 +38,7 @@ class AnimationEngine:
         self.stats = EngineStats()
         self.performance_monitor = PerformanceMonitor()
         self.profiler = ProfilerManager()
+        self.fps_balancer = FPSBalancer(self, self.led_output)
         
         self.running = False
         self.animation_thread = None
@@ -44,6 +46,10 @@ class AnimationEngine:
         
         self.target_fps = EngineSettings.ANIMATION.target_fps
         self.frame_interval = 1.0 / self.target_fps
+        
+        # Timing precision improvements
+        self.sleep_overhead_history = deque(maxlen=30)
+        self.average_sleep_overhead = 0.0
         
         self.master_brightness = EngineSettings.ANIMATION.master_brightness
         self.speed_percent = 100
@@ -71,6 +77,9 @@ class AnimationEngine:
         self.stats.animation_running = False
         
         self._setup_osc_handlers()
+        
+        self.fps_balancer.add_callback(self._on_fps_event)
+        self.fps_balancer.set_target_fps(self.target_fps)
         
         logger.info(f"AnimationEngine initialized with conditional animation loop")
         logger.info(f"Target: {self.target_fps} FPS, {EngineSettings.ANIMATION.led_count} LEDs")
@@ -126,6 +135,9 @@ class AnimationEngine:
             logger.info("Starting Performance Monitoring...")
             self._start_monitoring()
             
+            logger.info("Starting FPS Balancer...")
+            self.fps_balancer.start()
+            
             self.running = True
             
             logger.info("Animation Engine started successfully")
@@ -160,8 +172,7 @@ class AnimationEngine:
         self.animation_thread.start()
         
         logger.info("Animation loop started")
-        
-        time.sleep(0.1)
+       
         if not self.animation_thread.is_alive():
             logger.error("Animation thread failed to start!")
             self.animation_running = False
@@ -200,6 +211,9 @@ class AnimationEngine:
         self.running = False
         
         self._stop_animation_loop()
+        
+        logger.info("Stopping FPS Balancer...")
+        self.fps_balancer.stop()
         
         if self.monitoring_thread and self.monitoring_thread.is_alive():
             logger.info("Stopping monitoring thread...")
@@ -271,6 +285,9 @@ class AnimationEngine:
                     if delta_time > 0:
                         instant_fps = 1.0 / delta_time
                         self.fps_history.append(instant_fps)
+                        
+                        self.fps_balancer.update_fps(instant_fps)
+                        self.fps_balancer.update_led_count(self.get_current_led_count())
                     
                     if self.fps_frame_count >= fps_log_interval:
                         self._log_fps_status()
@@ -287,8 +304,37 @@ class AnimationEngine:
                 if frame_time > self.frame_interval * 2.0:
                     logger.warning(f"Frame processing exceeded target by {(frame_time - self.frame_interval)*1000:.1f}ms")
                 
+                # Debug timing every 300 frames
+                if self.frame_count % 300 == 0:
+                    logger.debug(f"Timing Debug - Target: {self.target_fps}fps, Frame: {frame_time*1000:.1f}ms, Sleep: {sleep_time*1000:.1f}ms, Interval: {self.frame_interval*1000:.1f}ms")
+                
                 if sleep_time > 0:
-                    time.sleep(sleep_time)
+                    sleep_start = time.perf_counter()
+                    
+                    # Compensate for sleep overhead
+                    compensated_sleep = max(0, sleep_time - self.average_sleep_overhead)
+                    
+                    # Use busy-wait for very short sleep times (< 2ms)
+                    if compensated_sleep < 0.002:
+                        # Busy-wait for precision
+                        target_time = sleep_start + sleep_time
+                        while time.perf_counter() < target_time:
+                            pass
+                    else:
+                        time.sleep(compensated_sleep)
+                    
+                    actual_sleep = time.perf_counter() - sleep_start
+                    
+                    # Track sleep overhead for future compensation
+                    if sleep_time > 0.001:  # Only track for meaningful sleeps
+                        overhead = actual_sleep - sleep_time
+                        self.sleep_overhead_history.append(overhead)
+                        if len(self.sleep_overhead_history) > 10:
+                            self.average_sleep_overhead = sum(self.sleep_overhead_history) / len(self.sleep_overhead_history)
+                    
+                    # Log sleep overhead if significant
+                    if actual_sleep > sleep_time * 1.5 and self.frame_count % 300 == 0:
+                        logger.debug(f"Sleep overhead: Expected {sleep_time*1000:.1f}ms, Actual {actual_sleep*1000:.1f}ms, Overhead: {(actual_sleep-sleep_time)*1000:.1f}ms, AvgOverhead: {self.average_sleep_overhead*1000:.1f}ms")
             
             logger.info("Animation loop stopped")
         
@@ -324,6 +370,70 @@ class AnimationEngine:
         
         logger.debug("Performance monitoring loop stopped")
     
+    def _on_fps_event(self, event_data):
+        """Callback được gọi khi FPS balancer có sự kiện"""
+        try:
+            event_type = event_data.get("type")
+            
+            if event_type == "fps_low":
+                self._handle_low_fps_adjustment(event_data)
+            elif event_type == "fps_high": 
+                self._handle_high_fps_adjustment(event_data)
+            elif event_type == "led_increase":
+                self._handle_led_count_increase(event_data)
+            elif event_type == "led_decrease":
+                self._handle_led_count_decrease(event_data)
+                
+        except Exception as e:
+            logger.error(f"Error in FPS event callback: {e}")
+    
+    def _handle_low_fps_adjustment(self, event_data):
+        """Handle low FPS - automatically decrease target FPS"""
+        fps_ratio = event_data.get("fps_ratio", 1.0)
+        led_fps = event_data.get("led_fps", 0.0)
+        
+        if fps_ratio < 0.85:
+            original_target = EngineSettings.ANIMATION.target_fps
+        
+            adjusted_target = max(30, int(original_target * fps_ratio * 1.1))
+            
+            if adjusted_target < self.target_fps:
+                self.set_target_fps(adjusted_target)
+    
+    def _handle_high_fps_adjustment(self, event_data):
+        """Handle high FPS - automatically increase target FPS to original level"""
+        fps_ratio = event_data.get("fps_ratio", 1.0)
+        led_fps = event_data.get("led_fps", 0.0)
+        
+        if fps_ratio > 1.1:
+            original_target = EngineSettings.ANIMATION.target_fps
+            
+            if self.target_fps < original_target:
+                new_target = min(original_target, self.target_fps + 5)
+                self.set_target_fps(new_target)
+    
+    def _handle_led_count_increase(self, event_data):
+        """Handle LED count increase - proactively decrease target FPS"""
+        ratio = event_data.get("ratio", 1.0)
+        
+        if ratio > 1.5:
+            original_target = EngineSettings.ANIMATION.target_fps
+            
+            adjusted_target = max(30, int(original_target / ratio * 1.2))
+            
+            if adjusted_target < self.target_fps:
+                self.set_target_fps(adjusted_target)
+    
+    def _handle_led_count_decrease(self, event_data):
+        """Handle LED count decrease - increase target FPS again"""
+        ratio = event_data.get("ratio", 1.0)
+        
+        if ratio < 0.7:
+            original_target = EngineSettings.ANIMATION.target_fps
+            if self.target_fps < original_target:
+                new_target = min(original_target, int(self.target_fps * 1.2))
+                self.set_target_fps(new_target)
+    
     def _log_fps_status(self):
         if self.fps_history:
             average_fps = sum(self.fps_history) / len(self.fps_history)
@@ -335,8 +445,6 @@ class AnimationEngine:
                     led_colors = self.scene_manager.get_led_output_with_timing(time.time())
                   
                     raw_active = ColorUtils.count_active_leds(led_colors)
-                    
-                    # Apply master brightness using ColorUtils
                     led_colors = ColorUtils.apply_colors_to_array(led_colors, self.master_brightness)
                     
                     active_leds = ColorUtils.count_active_leds(led_colors)
@@ -364,8 +472,6 @@ class AnimationEngine:
             
             if self.animation_running:
                 led_colors = self.scene_manager.get_led_output_with_timing(time.time())
-                
-                # Apply master brightness using ColorUtils
                 led_colors = ColorUtils.apply_colors_to_array(led_colors, self.master_brightness)
                 
                 active_leds = ColorUtils.count_active_leds(led_colors)
@@ -384,6 +490,23 @@ class AnimationEngine:
             
             return stats_copy
     
+    def get_fps_balancer_status(self) -> Dict[str, Any]:
+        """Get FPS balancer status for API"""
+        try:
+            return self.fps_balancer.get_status_dict()
+        except Exception as e:
+            logger.error(f"Error getting FPS balancer status: {e}")
+            return {"error": str(e)}
+    
+    def reset_fps_balancer(self):
+        """Reset FPS balancer to default state"""
+        try:
+            self.fps_balancer.force_reset()
+            logger.info("FPS balancer reset to default state")
+        except Exception as e:
+            logger.error(f"Error resetting FPS balancer: {e}")
+            raise
+    
     def _update_frame(self, delta_time: float, current_time: float):
         try:
             with self._lock:
@@ -397,8 +520,7 @@ class AnimationEngine:
             
             led_start = time.perf_counter()
             led_colors = self.scene_manager.get_led_output_with_timing(current_time)
-            
-            # Apply master brightness using ColorUtils
+        
             led_colors = ColorUtils.apply_colors_to_array(led_colors, master_brightness)
             
             outpu_start = time.perf_counter()
@@ -422,13 +544,31 @@ class AnimationEngine:
     def get_scene_info(self) -> Dict[str, Any]:
         return self.scene_manager.get_current_scene_info()
     
+    def set_target_fps(self, target_fps: float):
+        """Set target FPS và cập nhật FPS balancer"""
+        try:
+            if target_fps <= 0 or target_fps > 240:
+                raise ValueError(f"Target FPS must be between 1 and 240, got {target_fps}")
+            
+            with self._lock:
+                self.target_fps = target_fps
+                self.frame_interval = 1.0 / self.target_fps
+                self.stats.target_fps = target_fps
+                
+                # Update FPS balancer
+                self.fps_balancer.set_target_fps(target_fps)
+                
+                logger.info(f"Target FPS updated to {target_fps}")
+                
+        except Exception as e:
+            logger.error(f"Error setting target FPS: {e}")
+            raise
+    
     def get_led_colors(self) -> List[List[int]]:
         if not self.animation_running:
             return [[0, 0, 0] for _ in range(self.get_current_led_count())]
             
         led_colors = self.scene_manager.get_led_output_with_timing(time.time())
-        
-        # Apply master brightness using ColorUtils
         led_colors = ColorUtils.apply_colors_to_array(led_colors, self.master_brightness)
         
         return led_colors
