@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Callable, Any
 
 from ..models.scene import Scene
-from ..models.common import DissolveTransition, DissolvePatternManager, DissolvePhase
-from ..utils.logging import LoggingUtils, AnimationLogger
-from ..utils.validation import ValidationUtils
+from ..models.common import DissolveTransition, DissolvePhase
+from ..utils.logging import LoggingUtils
+from ..utils.disslove_pattern import DissolvePatternManager
 from config.settings import EngineSettings
 
 

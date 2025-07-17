@@ -50,12 +50,11 @@ class LEDDestination(BaseModel):
 
 class AnimationConfig(BaseModel):
     """
-    Animation engine configuration with expanded features
+    Animation engine configuration 
     """
     target_fps: int = Field(default=60, description="Target animation FPS", ge=1, le=240)
     led_count: int = Field(default=225, description="Default LED count (dynamic per scene)", ge=1, le=10000000)
     master_brightness: int = Field(default=255, description="Master brightness level", ge=0, le=255)
-    default_dissolve_time: int = Field(default=1000, description="Default dissolve time in ms", ge=0)
     
     max_segment_length: int = Field(default=10000, description="Maximum segment length for safety", ge=1, le=100000)
     dissolve_batch_size: int = Field(default=1000, description="Batch size for large dissolve operations", ge=100, le=10000)

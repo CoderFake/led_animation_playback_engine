@@ -19,10 +19,10 @@ from config.settings import EngineSettings
 from src.utils.logger import ComponentLogger
 from src.utils.performance import PerformanceMonitor, ProfilerManager
 from src.utils.fps_balancer import CompleteFPSBalancer
-from src.utils.logging import AnimationLogger, OSCLogger, LoggingUtils, PerformanceTracker
-from src.utils.validation import ValidationUtils
+from src.utils.logging import AnimationLogger, OSCLogger, LoggingUtils
 from src.utils.color_utils import ColorUtils
-from src.models.common import EngineStats, DissolvePatternManager
+from src.models.common import EngineStats
+from src.utils.disslove_pattern import DissolvePatternManager
 
 logger = ComponentLogger("AnimationEngine")
 
@@ -52,7 +52,6 @@ class AnimationEngine:
         
         self.master_brightness = EngineSettings.ANIMATION.master_brightness
         self.speed_percent = 100
-        self.dissolve_time = EngineSettings.ANIMATION.default_dissolve_time
         
         self.engine_start_time = 0.0
         self.frame_count = 0
@@ -72,7 +71,6 @@ class AnimationEngine:
         self.stats.target_fps = self.target_fps
         self.stats.master_brightness = self.master_brightness
         self.stats.speed_percent = self.speed_percent
-        self.stats.dissolve_time = self.dissolve_time
         self.stats.animation_running = False
         
         self._setup_osc_handlers()
@@ -88,6 +86,7 @@ class AnimationEngine:
             return EngineSettings.ANIMATION.led_count
     
     def _setup_osc_handlers(self):
+        """Setup OSC message handlers according to dissolve specification"""
         handlers = {
             "/load_json": self.handle_load_json,
             "/change_scene": self.handle_change_scene,
@@ -95,7 +94,6 @@ class AnimationEngine:
             "/change_palette": self.handle_change_palette,
             "/load_dissolve_json": self.handle_load_dissolve_json,
             "/set_dissolve_pattern": self.handle_set_dissolve_pattern,
-            "/set_dissolve_time": self.handle_set_dissolve_time,
             "/set_speed_percent": self.handle_set_speed_percent,
             "/master_brightness": self.handle_master_brightness,
         }
@@ -396,6 +394,12 @@ class AnimationEngine:
                 logger.warning(f"Performance below target: {efficiency:.1f}%")
     
     def get_stats(self) -> EngineStats:
+        """
+        Get engine statistics without dissolve_time parameter
+        
+        Returns:
+            EngineStats object with current engine state
+        """
         with self._lock:
             stats_copy = EngineStats()
             stats_copy.target_fps = self.target_fps
@@ -416,7 +420,6 @@ class AnimationEngine:
             stats_copy.animation_time = time.time() - self.engine_start_time
             stats_copy.master_brightness = self.master_brightness
             stats_copy.speed_percent = self.speed_percent
-            stats_copy.dissolve_time = self.dissolve_time
             
             self.stats.active_leds = stats_copy.active_leds
             self.stats.total_leds = stats_copy.total_leds
@@ -437,17 +440,11 @@ class AnimationEngine:
                 speed_percent = self.speed_percent
                 master_brightness = self.master_brightness
             
-            # Update animation với speed multiplier
             adjusted_delta = delta_time * (speed_percent / 100.0)
             self.scene_manager.update_animation(adjusted_delta)
-            
-            # Get LED output với timing
             led_colors = self.scene_manager.get_rendered_led_array()
-            
-            # Apply master brightness
             led_colors = ColorUtils.apply_colors_to_array(led_colors, master_brightness)
             
-            # Send to LED output
             self.led_output.send_led_data(led_colors)
                 
         except Exception as e:
@@ -496,7 +493,7 @@ class AnimationEngine:
         return led_colors
     
     def handle_load_json(self, address: str, *args):
-        """Fixed handle_load_json với proper error handling"""
+        """handle_load_json with proper error handling"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -598,6 +595,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_change_effect(self, address: str, *args):
+        """ Correct handle_change_effect with proper validation """ 
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -617,7 +615,7 @@ class AnimationEngine:
                     return
                 
                 available_effects = scene_info.get('available_effects', [])
-                if effect_id < 0 or effect_id >= len(self.current_scene.effects):
+                if effect_id < 0 or effect_id not in available_effects:
                     error_message = f"Effect {effect_id} not found. Available effects: {available_effects}"
                     LoggingUtils.log_warning("Animation", error_message)
                     OSCLogger.log_validation_failed(address, "effect_id", effect_id, f"one of {available_effects}")
@@ -642,7 +640,7 @@ class AnimationEngine:
             error_message = f"Error in handle_change_effect: {e}"
             LoggingUtils.log_error("Animation", error_message)
             OSCLogger.log_error(address, error_message)
-    
+
     def handle_change_palette(self, address: str, *args):
         try:
             OSCLogger.log_received(address, list(args))
@@ -724,6 +722,13 @@ class AnimationEngine:
             LoggingUtils.log_error("Animation", f"Error in handle_palette_color: {e}")
     
     def handle_load_dissolve_json(self, address: str, *args):
+        """
+        Handle OSC command to load dissolve patterns from JSON file
+        
+        Args:
+            address: OSC address (/load_dissolve_json)
+            args: OSC arguments containing file path
+        """
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -756,6 +761,13 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_set_dissolve_pattern(self, address: str, *args):
+        """
+        Handle OSC command to set active dissolve pattern
+        
+        Args:
+            address: OSC address (/set_dissolve_pattern)
+            args: OSC arguments containing pattern ID
+        """
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -784,42 +796,6 @@ class AnimationEngine:
                 
         except Exception as e:
             error_message = f"Error in handle_set_dissolve_pattern: {e}"
-            LoggingUtils.log_error("Animation", error_message)
-            OSCLogger.log_error(address, error_message)
-    
-    def handle_set_dissolve_time(self, address: str, *args):
-        try:
-            OSCLogger.log_received(address, list(args))
-            
-            if not args or len(args) == 0:
-                OSCLogger.log_validation_failed(address, "time_ms", None, "integer")
-                return
-            
-            try:
-                dissolve_time = int(args[0])
-                
-                if dissolve_time < 0:
-                    LoggingUtils.log_warning("Animation", f"Invalid dissolve time {dissolve_time} (must be >= 0)")
-                    dissolve_time = 0
-                
-                if dissolve_time > 60000: 
-                    LoggingUtils.log_warning("Animation", f"Dissolve time {dissolve_time}ms is too large, capping at 60000ms")
-                    dissolve_time = 60000
-                
-                with self._lock:
-                    old_time = self.dissolve_time
-                    self.dissolve_time = dissolve_time
-                    self.stats.dissolve_time = dissolve_time
-                    self._notify_state_change()
-                
-                LoggingUtils.log_info("Animation", f"Successfully set dissolve time from {old_time}ms to {self.dissolve_time}ms")
-                OSCLogger.log_processed(address, "success")
-                
-            except ValueError:
-                OSCLogger.log_validation_failed(address, "time_ms", args[0], "integer")
-                
-        except Exception as e:
-            error_message = f"Error in handle_set_dissolve_time: {e}"
             LoggingUtils.log_error("Animation", error_message)
             OSCLogger.log_error(address, error_message)
     
@@ -894,19 +870,3 @@ class AnimationEngine:
             error_message = f"Error in handle_master_brightness: {e}"
             LoggingUtils.log_error("Animation", error_message)
             OSCLogger.log_error(address, error_message)
-
-    def get_dissolve_info(self) -> Dict[str, Any]:
-        """Get dissolve system information"""
-        dissolve_manager_info = {
-            "manager_enabled": hasattr(self.dissolve_manager, 'patterns') and len(self.dissolve_manager.patterns) > 0,
-            "manager_current_pattern_id": getattr(self.dissolve_manager, 'current_pattern_id', None),
-            "manager_available_patterns": getattr(self.dissolve_manager, 'patterns', {}).keys() if hasattr(self.dissolve_manager, 'patterns') else [],
-            "manager_pattern_count": len(getattr(self.dissolve_manager, 'patterns', {}))
-        }
-        
-        scene_dissolve_info = self.scene_manager.get_dissolve_info()
-        
-        return {
-            **dissolve_manager_info,
-            **scene_dissolve_info
-        }
