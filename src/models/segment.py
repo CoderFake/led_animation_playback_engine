@@ -127,37 +127,21 @@ class Segment:
             return 1.0
     
     def update_position(self, delta_time: float):
-        """Update position with expanded speed range 0-1023% and improved boundary handling"""
+        """Update position with enhanced boundary enforcement"""
         if abs(self.move_speed) < 0.001:
             return
         
         old_position = self.current_position
         self.current_position += self.move_speed * delta_time
         
-        if self.current_position < 0:
-            if len(self.move_range) >= 2:
-                min_pos, max_pos = self.move_range[0], self.move_range[1]
-                if self.is_edge_reflect:
-                    self.current_position = min_pos + abs(self.current_position)
-                    if self.move_speed < 0:
-                        self.move_speed = abs(self.move_speed)
-                        self.reset_animation_timing()
-                else:
-                    range_size = max_pos - min_pos
-                    if range_size > 0:
-                        self.current_position = max_pos + (self.current_position % range_size)
-            else:
-                self.current_position = 0.0
-                if self.move_speed < 0:
-                    self.move_speed = abs(self.move_speed)
-                    self.reset_animation_timing()
+        total_segment_length = self.get_total_led_count()
         
         if len(self.move_range) >= 2:
             min_pos, max_pos = self.move_range[0], self.move_range[1]
             
-            if min_pos > max_pos:
-                min_pos, max_pos = max_pos, min_pos
-                self.move_range = [min_pos, max_pos]
+            effective_max_pos = max_pos - total_segment_length + 1
+            if effective_max_pos < min_pos:
+                effective_max_pos = min_pos
             
             if self.is_edge_reflect:
                 direction_changed = False
@@ -167,8 +151,8 @@ class Segment:
                     if self.move_speed < 0:
                         self.move_speed = abs(self.move_speed)
                         direction_changed = True
-                elif self.current_position >= max_pos:
-                    self.current_position = max_pos
+                elif self.current_position >= effective_max_pos:
+                    self.current_position = effective_max_pos
                     if self.move_speed > 0:
                         self.move_speed = -abs(self.move_speed)
                         direction_changed = True
@@ -176,19 +160,19 @@ class Segment:
                 if direction_changed:
                     self.reset_animation_timing()
             else:
-                range_size = max_pos - min_pos
+                range_size = effective_max_pos - min_pos
                 if range_size > 0:
                     if self.current_position < min_pos:
                         offset = min_pos - self.current_position
-                        self.current_position = max_pos - (offset % range_size)
-                    elif self.current_position > max_pos:
-                        offset = self.current_position - max_pos
+                        self.current_position = effective_max_pos - (offset % range_size)
+                    elif self.current_position > effective_max_pos:
+                        offset = self.current_position - effective_max_pos
                         self.current_position = min_pos + (offset % range_size)
                 else:
                     self.current_position = min_pos
         
-        self.current_position = max(-1000.0, self.current_position)
-    
+        self.current_position = max(-total_segment_length, self.current_position)
+
     def get_led_colors_with_timing(self, palette: List[List[int]], current_time: float) -> List[List[int]]:
         """Get LED colors with improved time-based brightness and palette handling"""
         if not self.color or not palette:
@@ -237,38 +221,52 @@ class Segment:
             return []
     
     def render_to_led_array(self, palette: List[List[int]], current_time: float, 
-                           led_array: List[List[int]]) -> None:
-        """Render segment to LED array with improved fractional positioning and fade effects"""
+                        led_array: List[List[int]]) -> None:
+        """Render segment to LED array with improved boundary checking"""
         segment_colors = self.get_led_colors_with_timing(palette, current_time)
         
         if not segment_colors:
             return
         
         try:
-            if self.current_position < 0:
-                if self.current_position < -len(segment_colors):
+            max_allowed_position = self.move_range[1] - len(segment_colors) + 1 if len(self.move_range) >= 2 else len(led_array) - len(segment_colors)
+            safe_position = min(self.current_position, max_allowed_position)
+            
+            if safe_position < 0:
+                if safe_position < -len(segment_colors):
                     return
-                
-                skip_count = int(abs(self.current_position))
+                skip_count = int(abs(safe_position))
                 if skip_count >= len(segment_colors):
                     return
-                
                 base_position = 0
                 segment_colors = segment_colors[skip_count:]
                 fractional_part = 0.0
             else:
-                base_position = max(0, int(self.current_position))
-                fractional_part = max(0.0, min(1.0, self.current_position - base_position))
+                base_position = max(0, int(safe_position))
+                fractional_part = max(0.0, min(1.0, safe_position - base_position))
             
-            if not led_array or base_position >= len(led_array):
+            if base_position >= len(led_array):
                 return
+                
+            available_leds = len(led_array) - base_position
+            if len(segment_colors) > available_leds:
+                segment_colors = segment_colors[:available_leds]
+            
+            if len(self.move_range) >= 2:
+                max_led_index = min(len(led_array) - 1, self.move_range[1])
+                if base_position + len(segment_colors) > max_led_index + 1:
+                    allowed_length = max_led_index + 1 - base_position
+                    if allowed_length > 0:
+                        segment_colors = segment_colors[:allowed_length]
+                    else:
+                        return
             
             for i, color in enumerate(segment_colors):
                 led_index = base_position + i
                 
                 if led_index < 0 or led_index >= len(led_array):
                     continue
-                
+                    
                 if not isinstance(color, (list, tuple)) or len(color) < 3:
                     continue
                 
@@ -286,7 +284,7 @@ class Segment:
         except Exception as e:
             import sys
             print(f"Error in render_to_led_array: {e}", file=sys.stderr, flush=True)
-    
+
     def get_total_led_count(self) -> int:
         """Get total number of LEDs this segment will generate"""
         try:

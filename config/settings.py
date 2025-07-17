@@ -57,12 +57,32 @@ class AnimationConfig(BaseModel):
     master_brightness: int = Field(default=255, description="Master brightness level", ge=0, le=255)
     default_dissolve_time: int = Field(default=1000, description="Default dissolve time in ms", ge=0)
     
+    max_segment_length: int = Field(default=10000, description="Maximum segment length for safety", ge=1, le=100000)
+    dissolve_batch_size: int = Field(default=1000, description="Batch size for large dissolve operations", ge=100, le=10000)
+    boundary_check_enabled: bool = Field(default=True, description="Enable boundary checking for safety")
+    
     led_destinations: List[LEDDestination] = Field(
         default_factory=lambda: [
-            LEDDestination(ip="127.0.0.1", port=7000, enabled=True, copy_mode=True, name="Simulator_Ceiling"),
-            LEDDestination(ip="127.0.0.1", port=7001, enabled=True, copy_mode=True, name="Simulator_Floor")
+            LEDDestination(
+                ip="127.0.0.1", 
+                port=7000, 
+                start_led=0, 
+                end_led=204, 
+                copy_mode=False, 
+                enabled=True, 
+                name="Ceiling_Strip"
+            ),
+            LEDDestination(
+                ip="127.0.0.1", 
+                port=7001, 
+                start_led=205, 
+                end_led=409, 
+                copy_mode=False, 
+                enabled=True, 
+                name="Floor_Strip"
+            )
         ],
-        description="LED output destinations for simulator"
+        description="LED output destinations matching simulator configuration"
     )
     
     performance_mode: str = Field(default="balanced", description="Performance mode: high, balanced, or efficient")

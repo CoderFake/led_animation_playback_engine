@@ -305,25 +305,34 @@ class LEDOutput:
             return None
     
     def _extract_led_range(self, binary_data: bytes, led_count: int, start_led: int, end_led: int) -> bytes:
-        """Extract LED range from binary data for range mode"""
+        """Extract LED range with enhanced safety for large arrays"""
         try:
-            # Handle end_led = -1 (full range)
+            if not binary_data:
+                return b""
+            
+            actual_led_count = len(binary_data) // 4
+            if actual_led_count == 0:
+                return b""
+            
             if end_led == -1:
-                end_led = led_count - 1
+                end_led = actual_led_count - 1
             
-            # Clamp indices to valid range
-            start_led = max(0, min(start_led, led_count - 1))
-            end_led = max(start_led, min(end_led, led_count - 1))
+            start_led = max(0, min(start_led, actual_led_count - 1))
+            end_led = max(start_led, min(end_led, actual_led_count - 1))
             
-            # Extract range (4 bytes per LED)
             start_byte = start_led * 4
             end_byte = (end_led + 1) * 4
+            
+            if start_byte >= len(binary_data):
+                return b""
+            
+            end_byte = min(end_byte, len(binary_data))
             
             return binary_data[start_byte:end_byte]
             
         except Exception as e:
             logger.error(f"Error extracting LED range [{start_led}:{end_led}]: {e}")
-            return binary_data
+            return b""
     
     def _update_statistics(self, current_time: float, data_size: int, successful_sends: int):
         """
@@ -343,7 +352,7 @@ class LEDOutput:
         """
         self.fps_frame_count += 1
         
-        if self.fps_frame_count >= 300:  # Log every 5 seconds at 60 FPS
+        if self.fps_frame_count >= 300: 
             fps_time_diff = current_time - self.fps_start_time
             
             if fps_time_diff > 0:

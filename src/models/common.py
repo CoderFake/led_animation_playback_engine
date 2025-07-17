@@ -127,9 +127,17 @@ class DissolveTransition:
             })
     
     def start_dissolve(self, pattern_data: List[List[int]], led_count: int):
-        """Start dissolve transition with pattern data"""
+        """Start dissolve transition with dynamic LED count support"""
         self.pattern_data = pattern_data
-        self.led_count = led_count
+        
+        if self.led_count != led_count:
+            self.led_count = led_count
+            self._initialize_led_states()
+        else:
+            self.led_count = led_count
+            if not self.led_states or len(self.led_states) != led_count:
+                self._initialize_led_states()
+        
         self.start_time = time.time()
         
         if not pattern_data:
@@ -140,11 +148,10 @@ class DissolveTransition:
         self.phase = DissolvePhase.DISSOLVING
         self.is_active = True
         
-        self._initialize_led_states()
         self._setup_led_timing()
-    
+
     def _setup_led_timing(self):
-        """Setup timing for each LED based on pattern with proper validation"""
+        """Setup timing with enhanced validation for large LED counts"""
         if not self.pattern_data:
             return
         
@@ -157,17 +164,25 @@ class DissolveTransition:
             start_led = max(0, min(start_led, self.led_count - 1))
             end_led = max(start_led, min(end_led, self.led_count - 1))
             
+            range_size = end_led - start_led + 1
+            if range_size > self.led_count // 2:  
+                logger.warning(f"Large dissolve range: {range_size} LEDs ({start_led}-{end_led})")
+            
             start_time = self.start_time + (delay_ms / 1000.0)
             
-            for led_idx in range(start_led, end_led + 1):
-                if led_idx < len(self.led_states):
-                    led_state = self.led_states[led_idx]
-                    
-                    if (led_state['start_time'] == 0.0 or 
-                        start_time < led_state['start_time']):
-                        led_state['start_time'] = start_time
-                        led_state['duration_ms'] = duration_ms
-                    self.led_states[led_idx]['phase'] = 'waiting'
+            batch_size = 1000  
+            for batch_start in range(start_led, end_led + 1, batch_size):
+                batch_end = min(batch_start + batch_size - 1, end_led)
+                
+                for led_idx in range(batch_start, batch_end + 1):
+                    if led_idx < len(self.led_states):
+                        led_state = self.led_states[led_idx]
+                        
+                        if (led_state['start_time'] == 0.0 or 
+                            start_time < led_state['start_time']):
+                            led_state['start_time'] = start_time
+                            led_state['duration_ms'] = duration_ms
+                        led_state['phase'] = 'waiting'
     
     def _validate_transition_data(self, transition) -> bool:
         """Validate transition data format and values"""
@@ -230,29 +245,38 @@ class DissolveTransition:
             self.is_active = False
     
     def get_led_output(self, from_colors: List[List[int]], to_colors: List[List[int]]) -> List[List[int]]:
-        """Get blended LED output during dissolve"""
+        """Get blended LED output with array size safety"""
         if not self.is_active or self.phase != DissolvePhase.DISSOLVING:
+            return to_colors
+        
+        min_size = min(len(self.led_states), len(from_colors), len(to_colors), self.led_count)
+        if min_size <= 0:
             return to_colors
         
         output = []
         
-        for led_idx in range(min(len(self.led_states), len(from_colors), len(to_colors))):
+        for led_idx in range(min_size):
             led_state = self.led_states[led_idx]
             
+            from_color = from_colors[led_idx][:3] if led_idx < len(from_colors) and len(from_colors[led_idx]) >= 3 else [0, 0, 0]
+            to_color = to_colors[led_idx][:3] if led_idx < len(to_colors) and len(to_colors[led_idx]) >= 3 else [0, 0, 0]
+            
             if led_state['phase'] == 'waiting':
-                # Still showing from_color
-                output.append(from_colors[led_idx][:3])
+                output.append(from_color)
             elif led_state['phase'] == 'dissolving':
-                # Blend from_color to to_color
-                progress = led_state['progress']
-                from_color = led_state['from_color']
-                to_color = led_state['to_color']
+                progress = max(0.0, min(1.0, led_state['progress'])) 
                 
-                blended = ColorUtils.calculate_transition_color(from_color, to_color, progress)
+                if 'from_color' in led_state and 'to_color' in led_state:
+                    stored_from = led_state['from_color']
+                    stored_to = led_state['to_color']
+                else:
+                    stored_from = from_color
+                    stored_to = to_color
+                
+                blended = ColorUtils.calculate_transition_color(stored_from, stored_to, progress)
                 output.append(blended)
-            else:  # completed
-                # Show to_color
-                output.append(to_colors[led_idx][:3])
+            else: 
+                output.append(to_color)
         
         return output
 

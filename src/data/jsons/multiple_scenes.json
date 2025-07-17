@@ -2,26 +2,34 @@
   "scenes": [
     {
       "scene_id": 0,
-      "led_count": 300,
-      "fps": 70,
+      "led_count": 410,
+      "fps": 60,
       "current_effect_id": 0,
       "current_palette_id": 0,
       "palettes": [
         [
-          [255, 100, 100],
-          [100, 255, 100],
-          [100, 100, 255],
-          [255, 255, 100],
-          [255, 100, 255],
-          [100, 255, 255]
+          [255, 0, 0],
+          [0, 255, 0],
+          [0, 0, 255],
+          [255, 255, 0],
+          [255, 0, 255],
+          [0, 255, 255]
         ],
         [
-          [255, 50, 0],
-          [255, 150, 0],
-          [255, 255, 0],
-          [150, 255, 50],
-          [50, 255, 150],
-          [0, 150, 255]
+          [255, 100, 0],
+          [255, 200, 0],
+          [200, 255, 0],
+          [100, 255, 0],
+          [0, 255, 100],
+          [0, 255, 200]
+        ],
+        [
+          [255, 50, 50],
+          [50, 255, 50],
+          [50, 50, 255],
+          [255, 255, 50],
+          [255, 50, 255],
+          [50, 255, 255]
         ]
       ],
       "effects": [
@@ -31,33 +39,66 @@
             "0": {
               "segment_id": 0,
               "color": [0, 1, 2],
-              "transparency": [1.0, 0.8, 0.6],
-              "length": [20, 15, 10],
-              "move_speed": 50.0,
-              "move_range": [0, 250],
+              "transparency": [0.0, 0.0, 0.0],
+              "length": [30, 25, 20],
+              "move_speed": 80.0,
+              "move_range": [0, 350],
               "initial_position": 0,
               "current_position": 0.0,
               "is_edge_reflect": true,
               "dimmer_time": [
-                [800, 0, 100],
-                [1200, 100, 100],
-                [800, 100, 0]
+                [1000, 0, 100],
+                [2000, 100, 100],
+                [1000, 100, 0]
               ]
             },
             "1": {
               "segment_id": 1,
               "color": [3, 4, 5],
-              "transparency": [0.9, 0.7, 0.5],
-              "length": [25, 20],
-              "move_speed": -35.0,
-              "move_range": [50, 280],
-              "initial_position": 280,
-              "current_position": 280.0,
+              "transparency": [0.0, 0.0, 0.0],
+              "length": [25, 20, 15],
+              "move_speed": -60.0,
+              "move_range": [50, 360],
+              "initial_position": 360,
+              "current_position": 360.0,
               "is_edge_reflect": true,
               "dimmer_time": [
-                [1000, 0, 80],
-                [2000, 80, 80],
-                [1000, 80, 0]
+                [800, 0, 100],
+                [1600, 100, 100],
+                [800, 100, 0]
+              ]
+            }
+          }
+        },
+        {
+          "effect_id": 1,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [0],
+              "transparency": [0.0],
+              "length": [50],
+              "move_speed": 120.0,
+              "move_range": [0, 360],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [500, 100, 100]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [2],
+              "transparency": [0.0],
+              "length": [40],
+              "move_speed": 100.0,
+              "move_range": [0, 370],
+              "initial_position": 100,
+              "current_position": 100.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [600, 100, 100]
               ]
             }
           }
@@ -66,88 +107,7 @@
     },
     {
       "scene_id": 1,
-      "led_count": 500,
-      "fps": 60,
-      "current_effect_id": 0,
-      "current_palette_id": 1,
-      "palettes": [
-        [
-          [0, 255, 255],
-          [255, 0, 255],
-          [255, 255, 0],
-          [128, 255, 128],
-          [255, 128, 128],
-          [128, 128, 255]
-        ],
-        [
-          [255, 200, 100],
-          [100, 255, 200],
-          [200, 100, 255],
-          [255, 255, 200],
-          [200, 255, 255],
-          [255, 200, 255]
-        ]
-      ],
-      "effects": [
-        {
-          "effect_id": 0,
-          "segments": {
-            "0": {
-              "segment_id": 0,
-              "color": [0, 1, 2, 3],
-              "transparency": [1.0, 0.9, 0.8, 0.7],
-              "length": [40, 30, 20, 10],
-              "move_speed": 80.0,
-              "move_range": [0, 400],
-              "initial_position": 0,
-              "current_position": 0.0,
-              "is_edge_reflect": false,
-              "dimmer_time": [
-                [500, 0, 100],
-                [1000, 100, 50],
-                [500, 50, 100],
-                [1000, 100, 0]
-              ]
-            },
-            "1": {
-              "segment_id": 1,
-              "color": [4, 5, 0],
-              "transparency": [0.8, 0.6, 0.4],
-              "length": [15, 10, 5],
-              "move_speed": 120.0,
-              "move_range": [100, 450],
-              "initial_position": 100,
-              "current_position": 100.0,
-              "is_edge_reflect": true,
-              "dimmer_time": [
-                [600, 0, 60],
-                [1200, 60, 60],
-                [600, 60, 0]
-              ]
-            },
-            "2": {
-              "segment_id": 2,
-              "color": [2, 3, 4],
-              "transparency": [0.7, 0.5, 0.3],
-              "length": [30, 25],
-              "move_speed": -60.0,
-              "move_range": [0, 470],
-              "initial_position": 470,
-              "current_position": 470.0,
-              "is_edge_reflect": true,
-              "dimmer_time": [
-                [1500, 0, 90],
-                [3000, 90, 90],
-                [1500, 90, 0]
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "scene_id": 2,
-      "led_count": 1000,
+      "led_count": 410,
       "fps": 60,
       "current_effect_id": 0,
       "current_palette_id": 0,
@@ -159,6 +119,14 @@
           [128, 255, 0],
           [0, 255, 0],
           [0, 255, 128]
+        ],
+        [
+          [0, 255, 255],
+          [0, 128, 255],
+          [0, 0, 255],
+          [128, 0, 255],
+          [255, 0, 255],
+          [255, 0, 128]
         ]
       ],
       "effects": [
@@ -168,10 +136,10 @@
             "0": {
               "segment_id": 0,
               "color": [0, 1, 2, 3, 4, 5],
-              "transparency": [1.0, 0.95, 0.9, 0.85, 0.8, 0.75],
-              "length": [80, 70, 60, 50, 40, 30],
-              "move_speed": 25.0,
-              "move_range": [0, 700],
+              "transparency": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+              "length": [20, 20, 20, 20, 20, 20],
+              "move_speed": 100.0,
+              "move_range": [0, 290],
               "initial_position": 0,
               "current_position": 0.0,
               "is_edge_reflect": true,
@@ -179,6 +147,274 @@
                 [2000, 0, 100],
                 [4000, 100, 100],
                 [2000, 100, 0]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scene_id": 2,
+      "led_count": 410,
+      "fps": 60,
+      "current_effect_id": 0,
+      "current_palette_id": 0,
+      "palettes": [
+        [
+          [255, 255, 255],
+          [255, 200, 200],
+          [200, 255, 200],
+          [200, 200, 255],
+          [255, 255, 200],
+          [255, 200, 255]
+        ]
+      ],
+      "effects": [
+        {
+          "effect_id": 0,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [0],
+              "transparency": [0.0],
+              "length": [80],
+              "move_speed": 50.0,
+              "move_range": [0, 330],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [1000, 100, 100]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [1, 2],
+              "transparency": [0.0, 0.0],
+              "length": [30, 30],
+              "move_speed": 70.0,
+              "move_range": [100, 350],
+              "initial_position": 100,
+              "current_position": 100.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [800, 100, 100]
+              ]
+            },
+            "2": {
+              "segment_id": 2,
+              "color": [3, 4, 5],
+              "transparency": [0.0, 0.0, 0.0],
+              "length": [15, 15, 15],
+              "move_speed": -90.0,
+              "move_range": [50, 365],
+              "initial_position": 365,
+              "current_position": 365.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [600, 100, 100]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scene_id": 3,
+      "led_count": 410,
+      "fps": 60,
+      "current_effect_id": 0,
+      "current_palette_id": 0,
+      "palettes": [
+        [
+          [255, 0, 0],
+          [0, 255, 0],
+          [0, 0, 255],
+          [255, 255, 0],
+          [255, 0, 255],
+          [0, 255, 255]
+        ]
+      ],
+      "effects": [
+        {
+          "effect_id": 0,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [0],
+              "transparency": [0.0],
+              "length": [10],
+              "move_speed": 200.0,
+              "move_range": [0, 400],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [100, 100, 100]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [1],
+              "transparency": [0.0],
+              "length": [10],
+              "move_speed": 180.0,
+              "move_range": [0, 400],
+              "initial_position": 50,
+              "current_position": 50.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [120, 100, 100]
+              ]
+            },
+            "2": {
+              "segment_id": 2,
+              "color": [2],
+              "transparency": [0.0],
+              "length": [10],
+              "move_speed": 160.0,
+              "move_range": [0, 400],
+              "initial_position": 100,
+              "current_position": 100.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [140, 100, 100]
+              ]
+            },
+            "3": {
+              "segment_id": 3,
+              "color": [3],
+              "transparency": [0.0],
+              "length": [10],
+              "move_speed": 140.0,
+              "move_range": [0, 400],
+              "initial_position": 150,
+              "current_position": 150.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [160, 100, 100]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scene_id": 4,
+      "led_count": 410,
+      "fps": 60,
+      "current_effect_id": 0,
+      "current_palette_id": 0,
+      "palettes": [
+        [
+          [255, 100, 100],
+          [100, 255, 100],
+          [100, 100, 255],
+          [255, 255, 100],
+          [255, 100, 255],
+          [100, 255, 255]
+        ]
+      ],
+      "effects": [
+        {
+          "effect_id": 0,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [0, 1, 2, 3, 4, 5],
+              "transparency": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+              "length": [25, 25, 25, 25, 25, 25],
+              "move_speed": 60.0,
+              "move_range": [0, 260],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [3000, 0, 100],
+                [6000, 100, 100],
+                [3000, 100, 0]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [5, 4, 3, 2, 1, 0],
+              "transparency": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+              "length": [20, 20, 20, 20, 20, 20],
+              "move_speed": -80.0,
+              "move_range": [80, 330],
+              "initial_position": 330,
+              "current_position": 330.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [2500, 0, 100],
+                [5000, 100, 100],
+                [2500, 100, 0]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scene_id": 5,
+      "led_count": 410,
+      "fps": 60,
+      "current_effect_id": 0,
+      "current_palette_id": 0,
+      "palettes": [
+        [
+          [255, 0, 0],
+          [255, 128, 0],
+          [255, 255, 0],
+          [0, 255, 0],
+          [0, 255, 255],
+          [0, 0, 255]
+        ]
+      ],
+      "effects": [
+        {
+          "effect_id": 0,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [0],
+              "transparency": [0.0],
+              "length": [30],
+              "move_speed": 40.0,
+              "move_range": [0, 100],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [1500, 100, 100]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [2],
+              "transparency": [0.0],
+              "length": [30],
+              "move_speed": 40.0,
+              "move_range": [155, 255],
+              "initial_position": 155,
+              "current_position": 155.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [1500, 100, 100]
+              ]
+            },
+            "2": {
+              "segment_id": 2,
+              "color": [4],
+              "transparency": [0.0],
+              "length": [30],
+              "move_speed": 40.0,
+              "move_range": [310, 410],
+              "initial_position": 310,
+              "current_position": 310.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [1500, 100, 100]
               ]
             }
           }
