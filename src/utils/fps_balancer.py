@@ -1,5 +1,6 @@
 """
-FPS Balancer - Adaptive Performance Management System
+FPS Balancer - Intelligent Timing Adjustment
+Equation: processing_time + sleep_time = loop_time (1/fps)
 """
 
 import time
@@ -15,11 +16,14 @@ logger = LoggingUtils._get_logger("FPSBalancer")
 
 
 @dataclass
-class FPSMetrics:
-    current_fps: float
+class TimingMetrics:
+    processing_time: float
+    sleep_time: float
+    loop_time: float
+    actual_fps: float
     target_fps: float
+    desired_fps: float
     led_count: int
-    fps_efficiency: float
 
 
 class FPSBalancer:
@@ -29,17 +33,23 @@ class FPSBalancer:
         self.led_output = led_output
         self.config = EngineSettings.FPS_BALANCER
         
-        self.fps_history = deque(maxlen=30)
-        self.last_adjustment_time = 0.0
+        self.desired_fps = EngineSettings.ANIMATION.target_fps
         
-        self.current_metrics = FPSMetrics(
-            current_fps=0.0,
-            target_fps=EngineSettings.ANIMATION.target_fps,
-            led_count=0,
-            fps_efficiency=0.0
+        self.processing_times = deque(maxlen=20)
+        self.loop_times = deque(maxlen=20)
+        
+        self.current_metrics = TimingMetrics(
+            processing_time=0.0,
+            sleep_time=0.0,
+            loop_time=0.0,
+            actual_fps=0.0,
+            target_fps=self.desired_fps,
+            desired_fps=self.desired_fps,
+            led_count=0
         )
         
         self.last_led_count = 0
+        self.last_adjustment_time = 0.0
         
         self.running = False
         self.balancer_thread = None
@@ -48,36 +58,30 @@ class FPSBalancer:
         self.callbacks: List[Callable] = []
         
 
-    
     def start(self):
         """Start FPS balancer""" 
         if not self.config.enabled:
             return
-            
-        if self.running:
-            return
-            
+        
         self.running = True
-        self.balancer_thread = threading.Thread(target=self._balancer_loop, daemon=True)
-        self.balancer_thread.start()
     
     def stop(self):
         """Stop FPS balancer"""
         self.running = False
-        if self.balancer_thread:
-            self.balancer_thread.join(timeout=3.0)
     
-    def update_fps(self, fps: float):
-        """Update current FPS"""
+    def update_timing(self, processing_time: float, sleep_time: float, loop_time: float):
+        """Update timing metrics from animation loop"""
         with self._lock:
-            self.fps_history.append(fps)
-            self.current_metrics.current_fps = fps
+            self.processing_times.append(processing_time)
+            self.loop_times.append(loop_time)
             
-            if self.current_metrics.target_fps > 0:
-                self.current_metrics.fps_efficiency = fps / self.current_metrics.target_fps
+            self.current_metrics.processing_time = processing_time
+            self.current_metrics.sleep_time = sleep_time
+            self.current_metrics.loop_time = loop_time
+            self.current_metrics.actual_fps = 1.0 / loop_time if loop_time > 0 else 0.0
     
     def update_led_count(self, led_count: int):
-        """Update LED count and automatically adjust if changed"""
+        """Update LED count and trigger adjustment if needed"""
         with self._lock:
             if led_count != self.last_led_count:
                 if self.last_led_count > 0:
@@ -86,106 +90,65 @@ class FPSBalancer:
                 self.last_led_count = led_count
                 self.current_metrics.led_count = led_count
     
-    def set_target_fps(self, target_fps: float):
-        """Set target FPS"""
+    def set_desired_fps(self, desired_fps: float):
+        """Set desired FPS (what user wants)"""
         with self._lock:
-            self.current_metrics.target_fps = target_fps
+            self.desired_fps = desired_fps
+            self.current_metrics.desired_fps = desired_fps
     
     def add_callback(self, callback: Callable):
         """Add callback when there is a change"""
         self.callbacks.append(callback)
-
-    def _get_led_output_fps(self) -> float:
-        """Get actual FPS from LED output"""
-        if not self.led_output:
-            return 0.0
-        
-        try:
-            stats = self.led_output.get_stats()
-            return stats.get('actual_send_fps', 0.0)
-        except Exception as e:
-            logger.error(f"Error getting LED output FPS: {e}")
-            return 0.0
     
-    def _balancer_loop(self):
-        """Main balancer loop"""
-        
-        while self.running:
-            try:
-                time.sleep(self.config.adjustment_interval)
+    def _calculate_optimal_target_fps(self):
+        """Calculate optimal target FPS to achieve desired FPS from settings"""
+        with self._lock:
+            if len(self.processing_times) < 2:
+                return
+            
+            recent_processing = list(self.processing_times)[-3:]
+            avg_processing_time = sum(recent_processing) / len(recent_processing)
+            
+            desired_loop_time = 1.0 / self.desired_fps
+            
+            if avg_processing_time >= desired_loop_time:
+                optimal_target_fps = 1.0 / avg_processing_time
+            else:
+                optimal_target_fps = self.desired_fps
+            
+            optimal_target_fps = max(10, min(300, optimal_target_fps))
+            
+            current_target = self.current_metrics.target_fps
+            if abs(optimal_target_fps - current_target) > 0.5:
+                self.current_metrics.target_fps = optimal_target_fps
                 
-                if not self.running:
-                    break
-                
-                # Lấy FPS thực tế từ LED output
-                led_fps = self._get_led_output_fps()
-                if led_fps > 0:
-                    self.update_fps(led_fps)
-                if len(self.fps_history) == 0:
-                    continue
-                
-                avg_fps = sum(self.fps_history) / len(self.fps_history)
-                target_fps = self.current_metrics.target_fps
-                
-                if target_fps <= 0:
-                    continue
-                
-                fps_ratio = avg_fps / target_fps
-                
-                if fps_ratio < self.config.target_fps_tolerance:
-                    self._handle_low_fps(fps_ratio)
-                elif fps_ratio > 1.1:
-                    self._handle_high_fps(fps_ratio)
-                
-            except Exception as e:
-                logger.error(f"Error in balancer loop: {e}")
-                import traceback
-                logger.error(f"Traceback: {traceback.format_exc()}")
+                self._notify_callbacks({
+                    "type": "target_fps_adjusted",
+                    "old_target": current_target,
+                    "new_target": optimal_target_fps,
+                    "desired_fps": self.desired_fps,
+                    "processing_time": avg_processing_time
+                })
     
     def _adjust_for_led_count_change(self, old_count: int, new_count: int):
         """Adjust when LED count changes"""
         try:
             ratio = new_count / old_count if old_count > 0 else 1.0
             
-            if ratio > 1.5:  
-                self._notify_callbacks({"type": "led_increase", "ratio": ratio})
+            if ratio > 1.2 or ratio < 0.8:  
+                self.processing_times.clear()
+                self.sleep_overheads.clear()
+                self.loop_times.clear()
                 
-            elif ratio < 0.7:
-                self._notify_callbacks({"type": "led_decrease", "ratio": ratio})
-            
-            self.fps_history.clear()
+                self._notify_callbacks({
+                    "type": "led_count_changed",
+                    "old_count": old_count,
+                    "new_count": new_count,
+                    "ratio": ratio
+                })
             
         except Exception as e:
             logger.error(f"Error adjusting for LED count change: {e}")
-    
-    def _handle_low_fps(self, fps_ratio: float):
-        """Handle low FPS"""
-        current_time = time.time()
-        
-        if current_time - self.last_adjustment_time < self.config.adjustment_interval:
-            return
-        
-        self.last_adjustment_time = current_time
-        
-        deficit = (1.0 - fps_ratio) * 100
-        
-        self._notify_callbacks({
-            "type": "fps_low", 
-            "fps_ratio": fps_ratio,
-            "deficit": deficit,
-            "led_fps": self._get_led_output_fps()
-        })
-    
-    def _handle_high_fps(self, fps_ratio: float):
-        """Handle high FPS"""
-        surplus = (fps_ratio - 1.0) * 100
-        
-        self._notify_callbacks({
-            "type": "fps_high",
-            "fps_ratio": fps_ratio,
-            "surplus": surplus,
-            "led_fps": self._get_led_output_fps()
-        })
     
     def _notify_callbacks(self, event_data: Dict[str, Any]):
         """Notify callbacks"""
@@ -194,32 +157,3 @@ class FPSBalancer:
                 callback(event_data)
             except Exception as e:
                 logger.error(f"Error in callback: {e}")
-    
-    def _log_status(self):
-        pass
-    
-    def get_status_dict(self) -> Dict[str, Any]:
-        """Get status dictionary for API"""
-        with self._lock:
-            avg_fps = sum(self.fps_history) / len(self.fps_history) if self.fps_history else 0.0
-            
-            return {
-                "enabled": self.config.enabled,
-                "target_fps": self.current_metrics.target_fps,
-                "current_fps": self.current_metrics.current_fps,
-                "average_fps": avg_fps,
-                "led_count": self.current_metrics.led_count,
-                "fps_efficiency": self.current_metrics.fps_efficiency,
-                "tolerance": self.config.target_fps_tolerance,
-                "adjustment_interval": self.config.adjustment_interval,
-                "led_output_fps": self._get_led_output_fps()
-            }
-    
-    def force_reset(self):
-        """Force reset FPS balancer"""
-        with self._lock:
-            self.fps_history.clear()
-            self.last_adjustment_time = 0.0
-            self.last_led_count = 0
-            
-            self._notify_callbacks({"type": "reset"}) 

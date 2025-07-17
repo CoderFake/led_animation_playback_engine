@@ -59,15 +59,16 @@ class AnimationConfig(BaseModel):
     
     led_destinations: List[LEDDestination] = Field(
         default_factory=lambda: [
-            LEDDestination(ip="192.168.11.105", port=7000, enabled=True, copy_mode=True, name="Device_0")
+            LEDDestination(ip="127.0.0.1", port=7000, enabled=True, copy_mode=True, name="Simulator_Ceiling"),
+            LEDDestination(ip="127.0.0.1", port=7001, enabled=True, copy_mode=True, name="Simulator_Floor")
         ],
-        description="LED output destinations"
+        description="LED output destinations for simulator"
     )
     
     performance_mode: str = Field(default="balanced", description="Performance mode: high, balanced, or efficient")
     max_frame_time_ms: float = Field(default=50.0, description="Maximum allowed frame processing time")
     
-    speed_range_max: int = Field(default=1023, description="Maximum speed percentage (expanded from 200% to 1023%)")
+    speed_range_max: int = Field(default=1023, description="Maximum speed percentage")
     fractional_positioning: bool = Field(default=True, description="Enable fractional positioning with fade effects")
     time_based_dimmer: bool = Field(default=True, description="Enable time-based dimmer instead of position-based")
     
@@ -148,7 +149,7 @@ class FPSBalancerConfig(BaseModel):
     FPS Balancer configuration for adaptive performance management
     """
     enabled: bool = Field(default=True, description="Enable FPS balancer")
-    target_fps_tolerance: float = Field(default=0.95, description="FPS tolerance (0.95 = 95% of target)", ge=0.8, le=1.0)
+    target_fps_tolerance: float = Field(default=0.95, description="FPS tolerance", ge=0.8, le=1.0)
     adjustment_interval: float = Field(default=1.0, description="Check interval in seconds", ge=0.5, le=5.0)
 
 

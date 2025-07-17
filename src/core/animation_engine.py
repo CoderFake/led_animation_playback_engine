@@ -47,7 +47,6 @@ class AnimationEngine:
         self.target_fps = EngineSettings.ANIMATION.target_fps
         self.frame_interval = 1.0 / self.target_fps
         
-        # Timing precision improvements
         self.sleep_overhead_history = deque(maxlen=30)
         self.average_sleep_overhead = 0.0
         
@@ -79,12 +78,8 @@ class AnimationEngine:
         self._setup_osc_handlers()
         
         self.fps_balancer.add_callback(self._on_fps_event)
-        self.fps_balancer.set_target_fps(self.target_fps)
-        
-        logger.info(f"AnimationEngine initialized with conditional animation loop")
-        logger.info(f"Target: {self.target_fps} FPS, {EngineSettings.ANIMATION.led_count} LEDs")
-        logger.info(f"Animation will start only when scenes are loaded")
-    
+        self.fps_balancer.set_desired_fps(self.target_fps)
+       
     def get_current_led_count(self) -> int:
         try:
             scene_info = self.scene_manager.get_current_scene_info()
@@ -286,7 +281,6 @@ class AnimationEngine:
                         instant_fps = 1.0 / delta_time
                         self.fps_history.append(instant_fps)
                         
-                        self.fps_balancer.update_fps(instant_fps)
                         self.fps_balancer.update_led_count(self.get_current_led_count())
                     
                     if self.fps_frame_count >= fps_log_interval:
@@ -304,37 +298,16 @@ class AnimationEngine:
                 if frame_time > self.frame_interval * 2.0:
                     logger.warning(f"Frame processing exceeded target by {(frame_time - self.frame_interval)*1000:.1f}ms")
                 
-                # Debug timing every 300 frames
-                if self.frame_count % 300 == 0:
-                    logger.debug(f"Timing Debug - Target: {self.target_fps}fps, Frame: {frame_time*1000:.1f}ms, Sleep: {sleep_time*1000:.1f}ms, Interval: {self.frame_interval*1000:.1f}ms")
+                target_frame_end = frame_start + self.frame_interval
+                while time.perf_counter() < target_frame_end:
+                    pass  
                 
-                if sleep_time > 0:
-                    sleep_start = time.perf_counter()
-                    
-                    # Compensate for sleep overhead
-                    compensated_sleep = max(0, sleep_time - self.average_sleep_overhead)
-                    
-                    # Use busy-wait for very short sleep times (< 2ms)
-                    if compensated_sleep < 0.002:
-                        # Busy-wait for precision
-                        target_time = sleep_start + sleep_time
-                        while time.perf_counter() < target_time:
-                            pass
-                    else:
-                        time.sleep(compensated_sleep)
-                    
-                    actual_sleep = time.perf_counter() - sleep_start
-                    
-                    # Track sleep overhead for future compensation
-                    if sleep_time > 0.001:  # Only track for meaningful sleeps
-                        overhead = actual_sleep - sleep_time
-                        self.sleep_overhead_history.append(overhead)
-                        if len(self.sleep_overhead_history) > 10:
-                            self.average_sleep_overhead = sum(self.sleep_overhead_history) / len(self.sleep_overhead_history)
-                    
-                    # Log sleep overhead if significant
-                    if actual_sleep > sleep_time * 1.5 and self.frame_count % 300 == 0:
-                        logger.debug(f"Sleep overhead: Expected {sleep_time*1000:.1f}ms, Actual {actual_sleep*1000:.1f}ms, Overhead: {(actual_sleep-sleep_time)*1000:.1f}ms, AvgOverhead: {self.average_sleep_overhead*1000:.1f}ms")
+                actual_loop_time = time.perf_counter() - frame_start
+                actual_sleep_time = actual_loop_time - frame_time
+                
+                self.fps_balancer.update_timing(frame_time, actual_sleep_time, actual_loop_time)
+                if self.frame_count % 10 == 0:
+                    self.fps_balancer._calculate_optimal_target_fps()
             
             logger.info("Animation loop stopped")
         
@@ -371,68 +344,34 @@ class AnimationEngine:
         logger.debug("Performance monitoring loop stopped")
     
     def _on_fps_event(self, event_data):
-        """Callback được gọi khi FPS balancer có sự kiện"""
+        """Callback when FPS balancer has an event"""
         try:
             event_type = event_data.get("type")
             
-            if event_type == "fps_low":
-                self._handle_low_fps_adjustment(event_data)
-            elif event_type == "fps_high": 
-                self._handle_high_fps_adjustment(event_data)
-            elif event_type == "led_increase":
-                self._handle_led_count_increase(event_data)
-            elif event_type == "led_decrease":
-                self._handle_led_count_decrease(event_data)
+            if event_type == "target_fps_adjusted":
+                self._handle_target_fps_adjusted(event_data)
+            elif event_type == "led_count_changed":
+                self._handle_led_count_changed(event_data)
                 
         except Exception as e:
             logger.error(f"Error in FPS event callback: {e}")
     
-    def _handle_low_fps_adjustment(self, event_data):
-        """Handle low FPS - automatically decrease target FPS"""
-        fps_ratio = event_data.get("fps_ratio", 1.0)
-        led_fps = event_data.get("led_fps", 0.0)
+    def _handle_target_fps_adjusted(self, event_data):
+        """Update target FPS when balancer adjusts it"""
+        new_target = event_data.get("new_target", 0)
         
-        if fps_ratio < 0.85:
-            original_target = EngineSettings.ANIMATION.target_fps
-        
-            adjusted_target = max(30, int(original_target * fps_ratio * 1.1))
-            
-            if adjusted_target < self.target_fps:
-                self.set_target_fps(adjusted_target)
+        with self._lock:
+            self.target_fps = new_target
+            self.frame_interval = 1.0 / self.target_fps
+            self.stats.target_fps = new_target
     
-    def _handle_high_fps_adjustment(self, event_data):
-        """Handle high FPS - automatically increase target FPS to original level"""
-        fps_ratio = event_data.get("fps_ratio", 1.0)
-        led_fps = event_data.get("led_fps", 0.0)
-        
-        if fps_ratio > 1.1:
-            original_target = EngineSettings.ANIMATION.target_fps
-            
-            if self.target_fps < original_target:
-                new_target = min(original_target, self.target_fps + 5)
-                self.set_target_fps(new_target)
-    
-    def _handle_led_count_increase(self, event_data):
-        """Handle LED count increase - proactively decrease target FPS"""
+    def _handle_led_count_changed(self, event_data):
+        """Handle when LED count changes significantly""" 
+        old_count = event_data.get("old_count", 0)
+        new_count = event_data.get("new_count", 0)
         ratio = event_data.get("ratio", 1.0)
         
-        if ratio > 1.5:
-            original_target = EngineSettings.ANIMATION.target_fps
-            
-            adjusted_target = max(30, int(original_target / ratio * 1.2))
-            
-            if adjusted_target < self.target_fps:
-                self.set_target_fps(adjusted_target)
-    
-    def _handle_led_count_decrease(self, event_data):
-        """Handle LED count decrease - increase target FPS again"""
-        ratio = event_data.get("ratio", 1.0)
-        
-        if ratio < 0.7:
-            original_target = EngineSettings.ANIMATION.target_fps
-            if self.target_fps < original_target:
-                new_target = min(original_target, int(self.target_fps * 1.2))
-                self.set_target_fps(new_target)
+        self.fps_history.clear()
     
     def _log_fps_status(self):
         if self.fps_history:
@@ -489,14 +428,6 @@ class AnimationEngine:
             self.stats.total_leds = stats_copy.total_leds
             
             return stats_copy
-    
-    def get_fps_balancer_status(self) -> Dict[str, Any]:
-        """Get FPS balancer status for API"""
-        try:
-            return self.fps_balancer.get_status_dict()
-        except Exception as e:
-            logger.error(f"Error getting FPS balancer status: {e}")
-            return {"error": str(e)}
     
     def reset_fps_balancer(self):
         """Reset FPS balancer to default state"""
@@ -556,7 +487,7 @@ class AnimationEngine:
                 self.stats.target_fps = target_fps
                 
                 # Update FPS balancer
-                self.fps_balancer.set_target_fps(target_fps)
+                self.fps_balancer.set_desired_fps(target_fps)
                 
                 logger.info(f"Target FPS updated to {target_fps}")
                 

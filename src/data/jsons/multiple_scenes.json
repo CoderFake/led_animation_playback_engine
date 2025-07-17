@@ -2,7 +2,7 @@
   "scenes": [
     {
       "scene_id": 0,
-      "led_count": 2000,
+      "led_count": 300,
       "fps": 70,
       "current_effect_id": 0,
       "current_palette_id": 0,
