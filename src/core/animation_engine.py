@@ -1,6 +1,6 @@
 """
-LED Animation Playback Engine - Conditional animation loop
-Animation only runs when scenes are loaded
+LED Animation Playback Engine with Dual Pattern Dissolve Support
+Animation continues during crossfade transitions between patterns
 """
 
 import asyncio
@@ -22,18 +22,20 @@ from src.utils.fps_balancer import CompleteFPSBalancer
 from src.utils.logging import AnimationLogger, OSCLogger, LoggingUtils
 from src.utils.color_utils import ColorUtils
 from src.models.common import EngineStats
-from src.utils.disslove_pattern import DissolvePatternManager
 
 logger = ComponentLogger("AnimationEngine")
 
 
 class AnimationEngine:
+    """
+    Main animation engine with dual pattern dissolve support
+    Manages continuous animation during pattern transitions
+    """
     
     def __init__(self):
         self.scene_manager = SceneManager()
         self.led_output = LEDOutput()
         self.osc_handler = OSCHandler(self)
-        self.dissolve_manager = DissolvePatternManager()
         
         self.stats = EngineStats()
         self.performance_monitor = PerformanceMonitor()
@@ -79,6 +81,7 @@ class AnimationEngine:
         self.fps_balancer.set_desired_fps(self.target_fps)
        
     def get_current_led_count(self) -> int:
+        """Get current LED count from active scene"""
         try:
             scene_info = self.scene_manager.get_scene_info()
             return scene_info.get('led_count', EngineSettings.ANIMATION.led_count)
@@ -86,7 +89,7 @@ class AnimationEngine:
             return EngineSettings.ANIMATION.led_count
     
     def _setup_osc_handlers(self):
-        """Setup OSC message handlers according to dissolve specification"""
+        """Setup OSC message handlers for dual pattern dissolve system"""
         handlers = {
             "/load_json": self.handle_load_json,
             "/change_scene": self.handle_change_scene,
@@ -103,11 +106,12 @@ class AnimationEngine:
         
         self.osc_handler.add_palette_handler(self.handle_palette_color)
         
-        logger.info(f"Registered {len(handlers)} OSC handlers")
+        logger.info(f"Registered {len(handlers)} OSC handlers for dual pattern system")
     
     async def start(self):
+        """Start animation engine with dual pattern dissolve support"""
         try:
-            logger.info("Starting Animation Engine subsystems...")
+            logger.info("Starting Animation Engine with dual pattern dissolve support...")
             
             self.engine_start_time = time.time()
             self.frame_count = 0
@@ -133,6 +137,7 @@ class AnimationEngine:
             self.running = True
             
             logger.info("Animation Engine started successfully")
+            logger.info("Dual pattern dissolve system ready")
             logger.info("Waiting for JSON scenes to be loaded before starting animation loop")
             
         except Exception as e:
@@ -142,6 +147,7 @@ class AnimationEngine:
             raise
     
     def _start_animation_loop(self):
+        """Start animation loop with dual pattern support"""
         if self.animation_running:
             logger.warning("Animation loop already running")
             return
@@ -159,11 +165,11 @@ class AnimationEngine:
         self.animation_thread = threading.Thread(
             target=self._animation_loop,
             daemon=True,
-            name="AnimationLoop"
+            name="DualPatternAnimationLoop"
         )
         self.animation_thread.start()
         
-        logger.info("Animation loop started")
+        logger.info("Dual pattern animation loop started")
        
         if not self.animation_thread.is_alive():
             logger.error("Animation thread failed to start!")
@@ -172,10 +178,11 @@ class AnimationEngine:
                 self.stats.animation_running = False
     
     def _stop_animation_loop(self):
+        """Stop animation loop"""
         if not self.animation_running:
             return
         
-        logger.info("Stopping animation loop...")
+        logger.info("Stopping dual pattern animation loop...")
         
         self.animation_should_stop = True
         
@@ -188,9 +195,10 @@ class AnimationEngine:
         with self._lock:
             self.stats.animation_running = False
         
-        logger.info("Animation loop stopped")
+        logger.info("Dual pattern animation loop stopped")
     
     def _check_scenes_available(self) -> bool:
+        """Check if scenes are available for animation"""
         try:
             scene_info = self.scene_manager.get_scene_info()
             return scene_info.get('scene_id') is not None
@@ -198,6 +206,7 @@ class AnimationEngine:
             return False
     
     async def stop(self):
+        """Stop animation engine"""
         logger.info("Stopping Animation Engine...")
         
         self.running = False
@@ -223,6 +232,7 @@ class AnimationEngine:
         logger.info("Animation Engine stopped successfully")
     
     def _start_monitoring(self):
+        """Start performance monitoring thread"""
         if self.monitoring_thread and self.monitoring_thread.is_alive():
             return
             
@@ -235,8 +245,12 @@ class AnimationEngine:
         logger.info("Performance monitoring thread started")
     
     def _animation_loop(self):
+        """
+        Main animation loop with dual pattern support
+        Continues animation during dissolve transitions
+        """
         try:
-            logger.info(f"Animation loop started - Target: {self.target_fps} FPS")
+            logger.info(f"Dual pattern animation loop started - Target: {self.target_fps} FPS")
             
             self.last_frame_time = time.time()
             self.fps_calculation_time = self.last_frame_time
@@ -259,7 +273,7 @@ class AnimationEngine:
                     self.last_frame_time = frame_start
                     
                     frame_process_start = time.perf_counter()
-                    self._update_frame(delta_time, frame_start)
+                    self._update_frame_with_dual_patterns(delta_time, frame_start)
                     
                     frame_process_time = time.perf_counter() - frame_process_start
                     if frame_process_time > frame_timeout:
@@ -297,17 +311,17 @@ class AnimationEngine:
                 
                 target_frame_end = frame_start + self.frame_interval
                 while time.perf_counter() < target_frame_end:
-                    pass  
+                    pass
                 
                 actual_loop_time = time.perf_counter() - frame_start
                 actual_sleep_time = actual_loop_time - frame_time
                 
                 self.fps_balancer.update_timing(frame_time, actual_sleep_time, actual_loop_time)
             
-            logger.info("Animation loop stopped")
+            logger.info("Dual pattern animation loop stopped")
         
         except Exception as e:
-            logger.error(f"FATAL ERROR in animation loop: {e}")
+            logger.error(f"FATAL ERROR in dual pattern animation loop: {e}")
             import traceback
             logger.error(f"Animation loop traceback: {traceback.format_exc()}")
         finally:
@@ -316,6 +330,7 @@ class AnimationEngine:
                 self.stats.animation_running = False
     
     def _monitoring_loop(self):
+        """Performance monitoring loop"""
         logger.debug("Performance monitoring loop started")
         
         while self.running:
@@ -339,6 +354,7 @@ class AnimationEngine:
         logger.debug("Performance monitoring loop stopped")
     
     def _on_fps_event(self, event_data):
+        """Handle FPS balancer events"""
         try:
             event_type = event_data.get("type")
             
@@ -351,6 +367,7 @@ class AnimationEngine:
             logger.error(f"Error in FPS event callback: {e}")
     
     def _handle_target_fps_adjusted(self, event_data):
+        """Handle target FPS adjustment"""
         new_target = event_data.get("new_target", 0)
         
         with self._lock:
@@ -359,6 +376,7 @@ class AnimationEngine:
             self.stats.target_fps = new_target
     
     def _handle_led_count_changed(self, event_data):
+        """Handle LED count change"""
         old_count = event_data.get("old_count", 0)
         new_count = event_data.get("new_count", 0)
         ratio = event_data.get("ratio", 1.0)
@@ -366,6 +384,7 @@ class AnimationEngine:
         self.fps_history.clear()
     
     def _log_fps_status(self):
+        """Log FPS status with dual pattern information"""
         if self.fps_history:
             average_fps = sum(self.fps_history) / len(self.fps_history)
             
@@ -374,32 +393,23 @@ class AnimationEngine:
                 
                 if self.animation_running:
                     led_colors = self.scene_manager.get_rendered_led_array()
-                  
-                    raw_active = ColorUtils.count_active_leds(led_colors)
                     led_colors = ColorUtils.apply_colors_to_array(led_colors, self.master_brightness)
                     
                     active_leds = ColorUtils.count_active_leds(led_colors)
                     self.stats.active_leds = active_leds
-                    
-                    if raw_active != active_leds:
-                        logger.debug(f"Active LEDs changed: {raw_active} -> {active_leds} (brightness: {self.master_brightness})")
                 else:
                     self.stats.active_leds = 0
             
             efficiency = (average_fps / self.target_fps) * 100
+            dissolve_status = "dissolving" if self.scene_manager.dissolve_transition.is_active else "normal"
             
-            logger.info(f"Frame {self.frame_count}: FPS {average_fps:.1f}, Speed {self.speed_percent}%, Active LEDs {self.stats.active_leds}")
+            logger.info(f"Frame {self.frame_count}: FPS {average_fps:.1f}, Speed {self.speed_percent}%, Active LEDs {self.stats.active_leds}, Mode: {dissolve_status}")
             
             if efficiency < 90:
                 logger.warning(f"Performance below target: {efficiency:.1f}%")
     
     def get_stats(self) -> EngineStats:
-        """
-        Get engine statistics without dissolve_time parameter
-        
-        Returns:
-            EngineStats object with current engine state
-        """
+        """Get engine statistics with dual pattern information"""
         with self._lock:
             stats_copy = EngineStats()
             stats_copy.target_fps = self.target_fps
@@ -427,6 +437,7 @@ class AnimationEngine:
             return stats_copy
     
     def reset_fps_balancer(self):
+        """Reset FPS balancer"""
         try:
             self.fps_balancer.force_reset()
             logger.info("FPS balancer reset to default state")
@@ -434,28 +445,36 @@ class AnimationEngine:
             logger.error(f"Error resetting FPS balancer: {e}")
             raise
     
-    def _update_frame(self, delta_time: float, current_time: float):
+    def _update_frame_with_dual_patterns(self, delta_time: float, current_time: float):
+        """
+        Update frame with dual pattern support during dissolve transitions
+        Both old and new patterns continue animating during crossfade
+        """
         try:
             with self._lock:
                 speed_percent = self.speed_percent
                 master_brightness = self.master_brightness
             
             adjusted_delta = delta_time * (speed_percent / 100.0)
+            
             self.scene_manager.update_animation(adjusted_delta)
+            
             led_colors = self.scene_manager.get_rendered_led_array()
             led_colors = ColorUtils.apply_colors_to_array(led_colors, master_brightness)
             
             self.led_output.send_led_data(led_colors)
                 
         except Exception as e:
-            LoggingUtils.log_error("Animation", f"Error in _update_frame: {e}")
+            LoggingUtils.log_error("Animation", f"Error in _update_frame_with_dual_patterns: {e}")
             import traceback
             LoggingUtils.log_error("Animation", f"Traceback: {traceback.format_exc()}")
     
     def add_state_callback(self, callback: Callable):
+        """Add state change callback"""
         self.state_callbacks.append(callback)
     
     def _notify_state_change(self):
+        """Notify state change callbacks"""
         for callback in self.state_callbacks:
             try:
                 callback()
@@ -463,9 +482,11 @@ class AnimationEngine:
                 logger.error(f"Error in state callback: {e}")
     
     def get_scene_info(self) -> Dict[str, Any]:
+        """Get scene information"""
         return self.scene_manager.get_scene_info()
     
     def set_target_fps(self, target_fps: float, propagate_to_balancer: bool = True):
+        """Set target FPS"""
         try:
             if target_fps <= 0 or target_fps > 240:
                 raise ValueError(f"Target FPS must be between 1 and 240, got {target_fps}")
@@ -484,6 +505,7 @@ class AnimationEngine:
             raise
     
     def get_led_colors(self) -> List[List[int]]:
+        """Get current LED colors with dual pattern support"""
         if not self.animation_running:
             return [[0, 0, 0] for _ in range(self.get_current_led_count())]
             
@@ -492,8 +514,10 @@ class AnimationEngine:
         
         return led_colors
     
+    # ==================== OSC Handlers ====================
+    
     def handle_load_json(self, address: str, *args):
-        """handle_load_json with proper error handling"""
+        """Handle loading JSON scenes for dual pattern system"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -523,13 +547,15 @@ class AnimationEngine:
                 success = self.scene_manager.load_multiple_scenes_from_file(file_path)
                 
                 if success:
+                    if self.animation_running:
+                        self._stop_animation_loop()
+                        LoggingUtils.log_info("Animation", "Stopped animation loop for new JSON data")
+                    
                     scenes_count = len(self.scene_manager.scenes) if hasattr(self.scene_manager, 'scenes') else None
                     LoggingUtils.log_info("Animation", f"Successfully loaded {scenes_count} scenes from {file_path}")
                     AnimationLogger.log_json_loaded("scenes", scenes_count)
                     
-                    if not self.animation_running:
-                        self._start_animation_loop()
-                        LoggingUtils.log_info("Animation", "Animation loop started after loading scenes")
+                    LoggingUtils.log_info("Animation", "New scenes loaded. Waiting for scene switch to start animation.")
                     
                     self._notify_state_change()
                     OSCLogger.log_processed(address, "success")
@@ -549,7 +575,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_change_scene(self, address: str, *args):
-        """Fixed handle_change_scene với proper validation"""
+        """Handle scene change with dual pattern dissolve"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -579,6 +605,11 @@ class AnimationEngine:
                 if success:
                     LoggingUtils.log_info("Animation", f"Successfully changed to scene {scene_id}")
                     AnimationLogger.log_scene_change(scene_id)
+                    
+                    if not self.animation_running:
+                        self._start_animation_loop()
+                        LoggingUtils.log_info("Animation", "Animation loop started after scene switch")
+                    
                     self._notify_state_change()
                     OSCLogger.log_processed(address, "success")
                 else:
@@ -595,7 +626,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_change_effect(self, address: str, *args):
-        """ Correct handle_change_effect with proper validation """ 
+        """Handle effect change with dual pattern dissolve"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -642,6 +673,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
 
     def handle_change_palette(self, address: str, *args):
+        """Handle palette change with dual pattern dissolve"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -688,6 +720,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_palette_color(self, address: str, palette_id: int, color_id: int, rgb: List[int]):
+        """Handle palette color update"""
         try:
             LoggingUtils.log_info("Animation", f"Updating palette {palette_id} color {color_id} to RGB({rgb[0]},{rgb[1]},{rgb[2]})")
             
@@ -722,13 +755,7 @@ class AnimationEngine:
             LoggingUtils.log_error("Animation", f"Error in handle_palette_color: {e}")
     
     def handle_load_dissolve_json(self, address: str, *args):
-        """
-        Handle OSC command to load dissolve patterns from JSON file
-        
-        Args:
-            address: OSC address (/load_dissolve_json)
-            args: OSC arguments containing file path
-        """
+        """Handle loading dissolve patterns"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -761,13 +788,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_set_dissolve_pattern(self, address: str, *args):
-        """
-        Handle OSC command to set active dissolve pattern
-        
-        Args:
-            address: OSC address (/set_dissolve_pattern)
-            args: OSC arguments containing pattern ID
-        """
+        """Handle setting dissolve pattern"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -800,6 +821,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_set_speed_percent(self, address: str, *args):
+        """Handle speed change"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -836,6 +858,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_master_brightness(self, address: str, *args):
+        """Handle master brightness change"""
         try:
             OSCLogger.log_received(address, list(args))
             

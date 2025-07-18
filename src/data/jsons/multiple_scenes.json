@@ -58,7 +58,7 @@
               "transparency": [0.0, 0.0, 0.0],
               "length": [25, 20, 15],
               "move_speed": -60.0,
-              "move_range": [50, 360],
+              "move_range": [50, 409],
               "initial_position": 360,
               "current_position": 360.0,
               "is_edge_reflect": true,
