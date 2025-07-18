@@ -40,32 +40,32 @@
               "segment_id": 0,
               "color": [0, 1, 2],
               "transparency": [0.0, 0.0, 0.0],
-              "length": [30, 25, 20],
+              "length": [50, 50, 50],
               "move_speed": 80.0,
               "move_range": [0, 350],
               "initial_position": 0,
               "current_position": 0.0,
               "is_edge_reflect": true,
               "dimmer_time": [
-                [1000, 0, 100],
+                [1000, 100, 100],
                 [2000, 100, 100],
-                [1000, 100, 0]
+                [1000, 100, 100]
               ]
             },
             "1": {
               "segment_id": 1,
               "color": [3, 4, 5],
               "transparency": [0.0, 0.0, 0.0],
-              "length": [25, 20, 15],
+              "length": [50, 50, 50],
               "move_speed": -60.0,
               "move_range": [50, 409],
               "initial_position": 360,
               "current_position": 360.0,
               "is_edge_reflect": true,
               "dimmer_time": [
-                [800, 0, 100],
+                [800, 100, 100],
                 [1600, 100, 100],
-                [800, 100, 0]
+                [800, 100, 100]
               ]
             }
           }

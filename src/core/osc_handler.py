@@ -58,7 +58,6 @@ class OSCHandler:
         """
         self.message_handlers[address] = handler
         self.dispatcher.map(address, self._create_wrapper(address, handler))
-        logger.debug(f"Added OSC handler for: {address}")
     
     def add_palette_handler(self, handler: Callable):
         """
@@ -68,7 +67,6 @@ class OSCHandler:
         
         palette_pattern_old = "/palette/*/*"
         self.dispatcher.map(palette_pattern_old, self._handle_palette_message)
-        logger.debug("Added palette color handler (supports both string and int IDs)")
     
     def _create_wrapper(self, address: str, handler: Callable):
         """
@@ -189,7 +187,6 @@ class OSCHandler:
             logger.info(f"Valid palette message: palette_id={palette_id}, color_id={color_id}, RGB=({rgb[0]},{rgb[1]},{rgb[2]})")
             
             if self.palette_handler:
-                logger.debug(f"Calling palette handler...")
                 future = self.executor.submit(
                     self._safe_palette_handler_call, 
                     self.palette_handler, address, palette_id, color_id, rgb
@@ -253,7 +250,6 @@ class OSCHandler:
             logger.info(f"Registered {len(self.message_handlers)} OSC addresses:")
             for addr in self.message_handlers.keys():
                 logger.info(f"  - {addr}")
-            logger.info("  - /palette/*/*  (supports both old A-E and new 0-4 formats)")
             logger.info("OSC Server is ready to receive messages")
             
             await asyncio.sleep(0.1)
@@ -276,7 +272,6 @@ class OSCHandler:
             self.executor.shutdown(wait=False)
             logger.info("OSC Executor stopped.")
         
-        # Log final stats
         stats = self.get_stats()
         logger.info(f"Final OSC Stats: {stats['message_count']} messages, {stats['error_count']} errors")
     
@@ -301,9 +296,6 @@ class OSCHandler:
                 "registered_addresses": len(self.message_handlers),
                 "executor_active": self.executor and not self.executor._shutdown,
                 "server_running": self.server is not None,
-                "palette_format_support": "both_old_and_new",
                 "error_rate": (self.error_count / max(1, self.message_count)) * 100
             }
-            
-            logger.debug(f"OSC Stats: {stats}")
             return stats

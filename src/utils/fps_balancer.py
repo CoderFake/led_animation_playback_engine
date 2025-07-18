@@ -11,20 +11,13 @@ from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass
 
 from config.settings import EngineSettings
+from src.models.common import FPSAdjustment
 from src.utils.logging import LoggingUtils
+
 
 logger = LoggingUtils._get_logger("FPSBalancer")
 
-@dataclass
-class FPSAdjustment:
-    """FPS adjustment event data"""
-    old_target: float
-    new_target: float
-    reason: str
-    led_count: int
-    avg_processing_time: float
-
-class CompleteFPSBalancer:
+class FPSBalancer:
     """
     Complete FPS Balancer with real adaptive logic
     Auto-adjust target FPS to maintain stable output

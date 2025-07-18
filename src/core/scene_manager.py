@@ -48,15 +48,10 @@ class SceneManager:
             'dissolve_transitions_completed': 0,
             'errors': 0
         }
-        
-        logger.info("SceneManager initialized with dual pattern dissolve system")
-        logger.info("Dissolve crossfade system ready")
     
     async def initialize(self):
         """Initialize the scene manager"""
         logger.info("Initializing Scene Manager...")
-        logger.info("Scene Manager initialization complete")
-        logger.info("Ready to receive OSC commands")
     
     def add_change_callback(self, callback: Callable):
         """Add callback for scene changes"""
@@ -113,7 +108,6 @@ class SceneManager:
                         self.current_scene = self.scenes[first_scene_id]
                     
                     self.stats['scenes_loaded'] += scenes_loaded
-                    logger.info(f"Loaded {scenes_loaded} scenes from {file_path}")
                     logger.info(f"Available scenes: {sorted(self.scenes.keys())}")
                     self._log_scene_status()
                     self._notify_changes()
@@ -330,12 +324,6 @@ class SceneManager:
                 
                 if old_pattern and new_pattern:
                     self._start_dual_dissolve_if_enabled(old_pattern, new_pattern)
-                    if self.dissolve_transition.is_active:
-                        logger.info(f"Scene {old_scene_id}→{scene_id} with dual pattern dissolve")
-                    else:
-                        logger.info(f"Scene {old_scene_id}→{scene_id} (direct)")
-                else:
-                    logger.info(f"Scene change to {scene_id} (direct)")
                 
                 self.stats['scene_switches'] += 1
                 self._log_scene_status()

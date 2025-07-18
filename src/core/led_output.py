@@ -1,7 +1,6 @@
 """
-LED Output - Terminal Optimized
+LED Output
 High-performance LED data transmission via OSC
-Optimized for background operation with comprehensive error handling
 """
 
 import struct
@@ -129,8 +128,6 @@ class LEDOutput:
             'last_data_size': 0
         }
         
-        logger.info("LEDOutput initialized")
-        
     async def start(self):
         """
         Initialize LED output destinations
@@ -150,7 +147,6 @@ class LEDOutput:
             active_count = 0
             for i, destination_config in enumerate(destinations_config):
                 try:
-                    # Convert LEDDestination to dict for LEDDestination class
                     if hasattr(destination_config, 'ip'):
                         config_dict = {
                             "ip": destination_config.ip,
@@ -358,9 +354,7 @@ class LEDOutput:
             if fps_time_diff > 0:
                 self.actual_send_fps = self.fps_frame_count / fps_time_diff
                 self.fps_history.append(self.actual_send_fps)
-                
-                logger.performance("led_output_fps", self.actual_send_fps, " FPS")
-                logger.info(f"LED Output: {self.actual_send_fps:.1f} FPS, Sends: {self.send_count}, Errors: {self.error_count}")
+                logger.info(f"LED Output: {self.actual_send_fps:.2f} FPS, Sends: {self.send_count}, Errors: {self.error_count}")
             
             self.fps_start_time = current_time
             self.fps_frame_count = 0

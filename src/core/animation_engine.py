@@ -18,7 +18,7 @@ from .osc_handler import OSCHandler
 from config.settings import EngineSettings
 from src.utils.logger import ComponentLogger
 from src.utils.performance import PerformanceMonitor, ProfilerManager
-from src.utils.fps_balancer import CompleteFPSBalancer
+from src.utils.fps_balancer import FPSBalancer
 from src.utils.logging import AnimationLogger, OSCLogger, LoggingUtils
 from src.utils.color_utils import ColorUtils
 from src.models.common import EngineStats
@@ -40,7 +40,7 @@ class AnimationEngine:
         self.stats = EngineStats()
         self.performance_monitor = PerformanceMonitor()
         self.profiler = ProfilerManager()
-        self.fps_balancer = CompleteFPSBalancer(self)
+        self.fps_balancer = FPSBalancer(self)
         
         self.running = False
         self.animation_thread = None
@@ -105,40 +105,27 @@ class AnimationEngine:
             self.osc_handler.add_handler(address, handler)
         
         self.osc_handler.add_palette_handler(self.handle_palette_color)
-        
-        logger.info(f"Registered {len(handlers)} OSC handlers for dual pattern system")
     
     async def start(self):
         """Start animation engine with dual pattern dissolve support"""
         try:
-            logger.info("Starting Animation Engine with dual pattern dissolve support...")
+            logger.info("Starting Animation Engine...")
             
             self.engine_start_time = time.time()
             self.frame_count = 0
             self.last_frame_time = self.engine_start_time
             self.fps_calculation_time = self.engine_start_time
             self.fps_frame_count = 0
-            
-            logger.info("Initializing Scene Manager...")
+
             await self.scene_manager.initialize()
-            
-            logger.info("Starting LED Output...")
             await self.led_output.start()
-            
-            logger.info("Starting OSC Handler...")
             await self.osc_handler.start()
-            
-            logger.info("Starting Performance Monitoring...")
             self._start_monitoring()
-            
-            logger.info("Starting FPS Balancer...")
             self.fps_balancer.start()
             
             self.running = True
             
             logger.info("Animation Engine started successfully")
-            logger.info("Dual pattern dissolve system ready")
-            logger.info("Waiting for JSON scenes to be loaded before starting animation loop")
             
         except Exception as e:
             logger.error(f"Error starting engine: {e}")
@@ -168,8 +155,6 @@ class AnimationEngine:
             name="DualPatternAnimationLoop"
         )
         self.animation_thread.start()
-        
-        logger.info("Dual pattern animation loop started")
        
         if not self.animation_thread.is_alive():
             logger.error("Animation thread failed to start!")
@@ -242,7 +227,6 @@ class AnimationEngine:
             name="PerformanceMonitor"
         )
         self.monitoring_thread.start()
-        logger.info("Performance monitoring thread started")
     
     def _animation_loop(self):
         """
@@ -250,8 +234,6 @@ class AnimationEngine:
         Continues animation during dissolve transitions
         """
         try:
-            logger.info(f"Dual pattern animation loop started - Target: {self.target_fps} FPS")
-            
             self.last_frame_time = time.time()
             self.fps_calculation_time = self.last_frame_time
             self.fps_frame_count = 0
@@ -331,7 +313,6 @@ class AnimationEngine:
     
     def _monitoring_loop(self):
         """Performance monitoring loop"""
-        logger.debug("Performance monitoring loop started")
         
         while self.running:
             try:
@@ -401,9 +382,8 @@ class AnimationEngine:
                     self.stats.active_leds = 0
             
             efficiency = (average_fps / self.target_fps) * 100
-            dissolve_status = "dissolving" if self.scene_manager.dissolve_transition.is_active else "normal"
             
-            logger.info(f"Frame {self.frame_count}: FPS {average_fps:.1f}, Speed {self.speed_percent}%, Active LEDs {self.stats.active_leds}, Mode: {dissolve_status}")
+            logger.info(f"Frame: {self.frame_count}, FPS: {average_fps:.1f}, Speed: {self.speed_percent}%, Active: {self.stats.active_leds} LEDs")
             
             if efficiency < 90:
                 logger.warning(f"Performance below target: {efficiency:.1f}%")

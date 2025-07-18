@@ -53,6 +53,15 @@ class LEDCrossfadeState:
     blend_progress: float = 0.0
 
 
+@dataclass
+class FPSAdjustment:
+    """FPS adjustment event data"""
+    old_target: float
+    new_target: float
+    reason: str
+    led_count: int
+    avg_processing_time: float
+
 class DualPatternCalculator:
     """
     Calculates LED colors for dual pattern system during dissolve

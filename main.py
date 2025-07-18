@@ -42,10 +42,9 @@ class LEDEngineApp:
             os.environ['LOG_LEVEL'] = 'DEBUG'
         
         logger = setup_logger(__name__)
-        
-        logger.info("LED Animation Engine - Terminal Mode")
-        logger.info(f"Target: {EngineSettings.ANIMATION.target_fps} FPS, {EngineSettings.ANIMATION.led_count} LEDs")
-        logger.info(f"OSC: {EngineSettings.OSC.input_host}:{EngineSettings.OSC.input_port}")
+        logger.info("=" * 50)
+        logger.info(" " * 10 + "LED ANIMATION PLAYBACK ENGINE")
+        logger.info("=" * 50)
     
     async def initialize(self):
         """
@@ -53,8 +52,6 @@ class LEDEngineApp:
         """
         global logger
         try:
-            logger.info("Starting LED Animation Engine...")
-            
             start_time = time.time()
             
             if not EngineSettings.validate_configuration():
@@ -124,9 +121,9 @@ class LEDEngineApp:
             stats = self.engine.get_stats()
             scene_info = self.engine.get_scene_info()
             
-            logger.info("=" * 40)
-            logger.info("ENGINE STATUS")
-            logger.info("=" * 40)
+            logger.info("=" * 50)
+            logger.info(" " * 18 + "ENGINE STATUS")
+            logger.info("=" * 50)
             logger.info(f"Runtime: {stats.animation_time:.1f}s")
             logger.info(f"FPS: {stats.actual_fps:.1f}/{stats.target_fps}")
             logger.info(f"Frames: {stats.frame_count}")
@@ -137,7 +134,7 @@ class LEDEngineApp:
             logger.info(f"Brightness: {stats.master_brightness}/255")
             logger.info(f"Speed: {stats.speed_percent}%")
             
-            if stats.actual_fps < stats.target_fps * 0.9:
+            if stats.actual_fps < stats.target_fps * 0.9 and stats.actual_fps > 0:
                 logger.warning(f"Performance warning: FPS below target ({stats.actual_fps:.1f} < {stats.target_fps})")
             
         except Exception as e:
@@ -153,7 +150,7 @@ class LEDEngineApp:
             led_stats = self.engine.led_output.get_stats()
             
             logger.info("=" * 50)
-            logger.info("PERFORMANCE METRICS")
+            logger.info(" " * 15 + "PERFORMANCE METRICS")
             logger.info("=" * 50)
             logger.info(f"Animation FPS: {stats.actual_fps:.2f}")
             logger.info(f"Total Frames: {stats.frame_count}")
@@ -265,7 +262,7 @@ OSC Control:
   /load_json "path/to/scenes.json"  # Load animation scenes
   /change_scene 1                   # Switch to scene 1
   /change_effect 2                  # Switch to effect 2
-  /change_palette A                 # Switch to palette A
+  /change_palette 0                 # Switch to palette 0
   /master_brightness 128            # Set brightness to 50%
         """
     )
@@ -308,7 +305,6 @@ OSC Control:
         print(f"Fatal error: {e}", file=sys.stderr)
         sys.exit(1)
     
-    print("LED Animation Engine terminated")
 
 
 if __name__ == "__main__":
