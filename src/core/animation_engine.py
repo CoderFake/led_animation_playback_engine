@@ -1,14 +1,3 @@
-"""
-Enhanced Animation Engine with /change_pattern OSC command
-File: src/core/animation_engine.py
-
-Changes:
-- Added /change_pattern OSC handler
-- Added pattern tracking state
-- Added reset logic for load_json
-- Enhanced pattern change detection
-"""
-
 import asyncio
 import time
 import threading
@@ -104,7 +93,7 @@ class AnimationEngine:
             "/change_scene": self.handle_change_scene,
             "/change_effect": self.handle_change_effect,
             "/change_palette": self.handle_change_palette,
-            "/change_pattern": self.handle_change_pattern,  # New handler
+            "/change_pattern": self.handle_change_pattern,
             "/load_dissolve_json": self.handle_load_dissolve_json,
             "/set_dissolve_pattern": self.handle_set_dissolve_pattern,
             "/set_speed_percent": self.handle_set_speed_percent,
@@ -121,11 +110,9 @@ class AnimationEngine:
         logger.info("Resetting engine state for new JSON load")
         
         with self._lock:
-            # Reset pattern tracking
             self.current_pattern = PatternState()
             self.animation_active = False
             
-            # Reset engine parameters to defaults
             old_speed = self.speed_percent
             old_brightness = self.master_brightness
             
@@ -174,7 +161,6 @@ class AnimationEngine:
         Returns:
             True if animation should start
         """
-        # Start animation if pattern is valid and not currently active
         return new_pattern.is_valid() and not self.animation_active
     
     def _should_trigger_dissolve(self, old_pattern: PatternState, new_pattern: PatternState) -> bool:
@@ -342,7 +328,12 @@ class AnimationEngine:
                     self.last_frame_time = frame_start
                     
                     frame_process_start = time.perf_counter()
-                    self._update_frame_with_patterns(delta_time, frame_start)
+
+                    if self.animation_active and self.current_pattern.is_valid():
+                        self._update_frame_with_patterns(delta_time, frame_start)
+                    else:
+                        led_colors = [[0, 0, 0] for _ in range(self.get_current_led_count())]
+                        self.led_output.send_led_data(led_colors)
                     
                     frame_process_time = time.perf_counter() - frame_process_start
                     if frame_process_time > frame_timeout:
@@ -602,7 +593,6 @@ class AnimationEngine:
             
             LoggingUtils.log_info("Animation", f"Loading JSON from: {file_path}")
             
-            # Reset engine state first
             self._reset_engine_state()
             
             success = False
@@ -643,7 +633,8 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_change_scene(self, address: str, *args):
-        """Handle scene change without starting animation (only sets scene parameters)"""
+        """Handle scene change without starting animation"""
+        
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -654,7 +645,7 @@ class AnimationEngine:
             try:
                 scene_id = int(args[0])
                 LoggingUtils.log_info("Animation", f"Setting scene parameter to: {scene_id}")
-                
+
                 available_scenes = self.scene_manager.get_available_scenes()
                 if not available_scenes:
                     error_message = "No scenes are loaded"
@@ -668,12 +659,10 @@ class AnimationEngine:
                     OSCLogger.log_validation_failed(address, "scene_id", scene_id, f"one of {available_scenes}")
                     return
                 
-                # Just set scene parameters without triggering animation
                 success = self.scene_manager.change_scene_parameters_only(scene_id)
                 
                 if success:
-                    LoggingUtils.log_info("Animation", f"Scene parameter set to {scene_id} (no animation trigger)")
-                    self._notify_state_change()
+                    LoggingUtils.log_info("Animation", f"Scene parameter set to {scene_id}")
                     OSCLogger.log_processed(address, "success")
                 else:
                     error_message = f"Failed to set scene parameter to {scene_id}"
@@ -689,7 +678,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_change_effect(self, address: str, *args):
-        """Handle effect change without starting animation (only sets effect parameters)"""
+        """Handle effect change without starting animation"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -715,12 +704,10 @@ class AnimationEngine:
                     OSCLogger.log_validation_failed(address, "effect_id", effect_id, f"one of {available_effects}")
                     return
                 
-                # Just set effect parameters without triggering animation
                 success = self.scene_manager.change_effect_parameters_only(effect_id)
                 
                 if success:
-                    LoggingUtils.log_info("Animation", f"Effect parameter set to {effect_id} (no animation trigger)")
-                    self._notify_state_change()
+                    LoggingUtils.log_info("Animation", f"Effect parameter set to {effect_id}")
                     OSCLogger.log_processed(address, "success")
                 else:
                     error_message = f"Failed to set effect parameter to {effect_id}"
@@ -762,12 +749,10 @@ class AnimationEngine:
                     OSCLogger.log_validation_failed(address, "palette_id", palette_id, f"one of {available_palettes}")
                     return
                 
-                # Just set palette parameters without triggering animation
                 success = self.scene_manager.change_palette_parameters_only(palette_id)
                 
                 if success:
-                    LoggingUtils.log_info("Animation", f"Palette parameter set to {palette_id} (no animation trigger)")
-                    self._notify_state_change()
+                    LoggingUtils.log_info("Animation", f"Palette parameter set to {palette_id}")
                     OSCLogger.log_processed(address, "success")
                 else:
                     error_message = f"Failed to set palette parameter to {palette_id}"
@@ -798,7 +783,6 @@ class AnimationEngine:
         try:
             OSCLogger.log_received(address, list(args))
             
-            # Get current state from scene manager
             scene_info = self.scene_manager.get_scene_info()
             
             if 'error' in scene_info:
@@ -807,7 +791,6 @@ class AnimationEngine:
                 OSCLogger.log_error(address, error_message)
                 return
             
-            # Build new pattern from current scene manager state
             new_scene_id = scene_info.get('scene_id')
             new_effect_id = scene_info.get('effect_id')  
             new_palette_id = scene_info.get('palette_id')
@@ -818,16 +801,12 @@ class AnimationEngine:
                 OSCLogger.log_error(address, error_message)
                 return
             
-            # scene_info already contains the resolved values from scene manager
-            # If effect_id or palette_id are None in scene_info, it means they weren't set via OSC
-            # and scene manager should return the scene's default values
             if new_effect_id is None or new_palette_id is None:
                 error_message = f"Incomplete pattern configuration: scene={new_scene_id}, effect={new_effect_id}, palette={new_palette_id}"
                 LoggingUtils.log_error("Animation", error_message)
                 OSCLogger.log_error(address, error_message)
                 return
             
-            # Validate the combination exists
             available_effects = scene_info.get('available_effects', [])
             available_palettes = scene_info.get('available_palettes', [])
             
@@ -843,7 +822,6 @@ class AnimationEngine:
                 OSCLogger.log_error(address, error_message)
                 return
             
-            # Create pattern states
             old_pattern = PatternState(
                 scene_id=self.current_pattern.scene_id,
                 effect_id=self.current_pattern.effect_id,
@@ -858,23 +836,18 @@ class AnimationEngine:
             
             LoggingUtils.log_info("Animation", f"Pattern combination: scene={new_scene_id}, effect={new_effect_id}, palette={new_palette_id}")
             
-            # Check if pattern actually changed
             if old_pattern == new_pattern:
                 LoggingUtils.log_info("Animation", f"Pattern unchanged: {new_pattern.scene_id}/{new_pattern.effect_id}/{new_pattern.palette_id} - no action")
-                OSCLogger.log_processed(address, "no_change")
                 return
             
             LoggingUtils.log_info("Animation", f"Pattern change: {old_pattern.scene_id}/{old_pattern.effect_id}/{old_pattern.palette_id} -> {new_pattern.scene_id}/{new_pattern.effect_id}/{new_pattern.palette_id}")
             
-            # Determine action based on current state
             should_start = self._should_start_animation(new_pattern)
             should_dissolve = self._should_trigger_dissolve(old_pattern, new_pattern)
             
             if should_start:
-                # First time: start animation with potential fade-in
-                LoggingUtils.log_info("Animation", "Starting animation (first pattern activation)")
+                LoggingUtils.log_info("Animation", "Starting animation")
                 
-                # Start dissolve with fade-in if pattern is available
                 dissolve_triggered = self.scene_manager.start_fade_in_dissolve(new_pattern)
                 
                 if dissolve_triggered:
@@ -885,7 +858,6 @@ class AnimationEngine:
                 self._start_animation_loop()
                 
             elif should_dissolve:
-                # Subsequent times: trigger crossfade dissolve
                 LoggingUtils.log_info("Animation", "Triggering crossfade dissolve")
                 
                 dissolve_triggered = self.scene_manager.start_crossfade_dissolve(old_pattern, new_pattern)
@@ -893,9 +865,8 @@ class AnimationEngine:
                 if dissolve_triggered:
                     LoggingUtils.log_info("Animation", "Crossfade dissolve started")
                 else:
-                    LoggingUtils.log_info("Animation", "Direct pattern change (no dissolve pattern set)")
+                    LoggingUtils.log_info("Animation", "Direct pattern change")
             
-            # Update current pattern state
             self.current_pattern = new_pattern
             
             LoggingUtils.log_info("Animation", f"Pattern activated: {new_pattern.scene_id}/{new_pattern.effect_id}/{new_pattern.palette_id}")

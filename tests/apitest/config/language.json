@@ -72,15 +72,15 @@
         },
         "change_scene": {
           "summary": "Set Scene Parameter",
-          "description": "Set scene parameter (no animation trigger)"
+          "description": "Set scene parameter"
         },
         "change_effect": {
           "summary": "Set Effect Parameter",
-          "description": "Set effect parameter (no animation trigger)"
+          "description": "Set effect parameter"
         },
         "change_palette": {
           "summary": "Set Palette Parameter",
-          "description": "Set palette parameter (no animation trigger)"
+          "description": "Set palette parameter"
         },
         "change_pattern": {
           "summary": "Activate Pattern",

@@ -34,7 +34,7 @@ async def change_pattern(request: ChangePatternRequest, http_request: Request):
 
 @router.post("/change_effect", response_model=OSCApiResponse)
 async def change_effect(request: ChangeEffectRequest, http_request: Request):
-    """Set effect parameter (no animation trigger)"""
+    """Set effect parameter"""
     try:
         osc_request = OSCRequest()
         osc_request.set_address("/change_effect")

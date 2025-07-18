@@ -287,7 +287,6 @@ class SceneManager:
                 self.current_scene = self.scenes[scene_id]
                 
                 logger.debug(f"Scene parameters set to {scene_id} (no dissolve trigger)")
-                self._notify_changes()
                 return True
                 
         except Exception as e:
@@ -311,7 +310,6 @@ class SceneManager:
                     return False
                 
                 self.current_scene.current_effect_id = effect_id
-                self._notify_changes()
                 return True
                 
         except Exception as e:
@@ -337,7 +335,6 @@ class SceneManager:
                 self.current_scene.current_palette_id = palette_id
                 
                 logger.debug(f"Palette parameters set to {palette_id} (no dissolve trigger)")
-                self._notify_changes()
                 return True
                 
         except Exception as e:
@@ -497,7 +494,6 @@ class SceneManager:
                 self.current_scene.palettes[palette_id][color_id] = [r, g, b]
                 
                 logger.info(f"Palette {palette_id}[{color_id}] = RGB({r},{g},{b})")
-                self._notify_changes()
                 return True
                 
         except Exception as e:
