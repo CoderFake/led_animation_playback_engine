@@ -1,11 +1,10 @@
-"""
-LED Control Endpoints
-"""
+
 from fastapi import APIRouter, HTTPException, Request
 from dataclass.api_models import (
     ChangeEffectRequest, DissolveTimeRequest, 
     SpeedPercentRequest, MasterBrightnessRequest, OSCApiResponse,
-    LoadDissolveJsonRequest, SetDissolvePatternRequest
+    LoadDissolveJsonRequest, SetDissolvePatternRequest,
+    ChangePatternRequest, PatternStatusResponse
 )
 from dataclass.osc_models import OSCRequest, OSCMessageType, OSCDataType
 from services.osc_client import OSCClientContext, UDPOSCClient
@@ -15,8 +14,27 @@ router = APIRouter()
 
 osc_client = OSCClientContext(UDPOSCClient())
 
+@router.post("/change_pattern", response_model=PatternStatusResponse)
+async def change_pattern(request: ChangePatternRequest, http_request: Request):
+   
+    try:
+        osc_request = OSCRequest()
+        osc_request.set_address("/change_pattern")
+        osc_request.set_message_type(OSCMessageType.LED_CONTROL)
+        
+        response = await osc_client.send_message(osc_request)
+
+        
+        return PatternStatusResponse(
+            success=response.is_success(),
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/change_effect", response_model=OSCApiResponse)
 async def change_effect(request: ChangeEffectRequest, http_request: Request):
+    """Set effect parameter (no animation trigger)"""
     try:
         osc_request = OSCRequest()
         osc_request.set_address("/change_effect")
@@ -24,11 +42,10 @@ async def change_effect(request: ChangeEffectRequest, http_request: Request):
         osc_request.add_parameter("effect_id", request.effect_id, OSCDataType.INT, "Effect ID")
         
         response = await osc_client.send_message(osc_request)
-        
-        # Get localized message
+    
         lang = get_request_language(http_request)
         log_message = language_service.get_response_message(
-            "effect_changed", 
+            "effect_parameter_set", 
             language=lang,
             effect_id=request.effect_id
         )
@@ -38,8 +55,10 @@ async def change_effect(request: ChangeEffectRequest, http_request: Request):
             message=log_message,
             data={
                 "effect_id": request.effect_id,
+                "note": "Parameter set only - use /change_pattern to activate",
                 "osc_response": response.__dict__
-            }
+            },
+            action_type="parameter_set"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -57,7 +76,6 @@ async def load_dissolve_json(request: LoadDissolveJsonRequest, http_request: Req
         
         response = await osc_client.send_message(osc_request)
         
-        # Get localized message
         lang = get_request_language(http_request)
         log_message = language_service.get_response_message(
             "dissolve_pattern_loaded", 
@@ -71,7 +89,8 @@ async def load_dissolve_json(request: LoadDissolveJsonRequest, http_request: Req
             data={
                 "file_path": request.file_path,
                 "osc_response": response.__dict__
-            }
+            },
+            action_type="dissolve_pattern_load"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -103,7 +122,8 @@ async def set_dissolve_pattern(request: SetDissolvePatternRequest, http_request:
             data={
                 "pattern_id": request.pattern_id,
                 "osc_response": response.__dict__
-            }
+            },
+            action_type="dissolve_pattern_set"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -132,7 +152,8 @@ async def set_dissolve_time(request: DissolveTimeRequest, http_request: Request)
             data={
                 "time_ms": request.time_ms,
                 "osc_response": response.__dict__
-            }
+            },
+            action_type="dissolve_time_set"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -160,8 +181,10 @@ async def set_speed_percent(request: SpeedPercentRequest, http_request: Request)
             message=log_message,
             data={
                 "percent": request.percent,
+                "range": "0-1023%",
                 "osc_response": response.__dict__
-            }
+            },
+            action_type="speed_set"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -189,8 +212,10 @@ async def master_brightness(request: MasterBrightnessRequest, http_request: Requ
             message=log_message,
             data={
                 "brightness": request.brightness,
+                "range": "0-255",
                 "osc_response": response.__dict__
-            }
+            },
+            action_type="brightness_set"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))

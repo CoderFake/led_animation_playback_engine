@@ -378,7 +378,7 @@ class Segment:
             return False
     
     def validate(self) -> bool:
-        """Enhanced validation using centralized validation utilities"""
+        """validation using centralized validation utilities"""
         try:
             if not ValidationUtils.validate_int(self.segment_id, 0, ValidationUtils.MAX_SEGMENT_ID):
                 log_validation_error(f"Invalid segment_id: {self.segment_id}", "segment_id")

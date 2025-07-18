@@ -1,8 +1,3 @@
-"""
-SceneManager implementation with dual pattern dissolve crossfade support
-Handles scene/effect/palette changes with simultaneous animation of old and new patterns
-"""
-
 import json
 import time
 import threading
@@ -22,8 +17,8 @@ logger = LoggingUtils._get_logger("SceneManager")
 
 class SceneManager:
     """
-    Scene management with dual pattern dissolve crossfade transitions
-    Handles loading, switching, and transitioning between patterns (Effect × Palette combinations)
+    Scene management with pattern-based dissolve transitions
+    Supports parameter-only changes and smart dissolve triggering
     """
     
     def __init__(self):
@@ -45,7 +40,10 @@ class SceneManager:
             'scene_switches': 0,
             'effect_changes': 0,
             'palette_changes': 0,
+            'pattern_changes': 0,
             'dissolve_transitions_completed': 0,
+            'fade_in_transitions': 0,
+            'crossfade_transitions': 0,
             'errors': 0
         }
     
@@ -89,6 +87,10 @@ class SceneManager:
                     logger.error("Invalid JSON format: 'scenes' must be an array")
                     return False
                 
+                self.scenes.clear()
+                self.current_scene_id = None
+                self.current_scene = None
+                
                 scenes_loaded = 0
                 
                 for scene_data in scenes_data:
@@ -102,14 +104,9 @@ class SceneManager:
                         continue
                 
                 if scenes_loaded > 0:
-                    if self.current_scene_id is None:
-                        first_scene_id = min(self.scenes.keys())
-                        self.current_scene_id = first_scene_id
-                        self.current_scene = self.scenes[first_scene_id]
-                    
                     self.stats['scenes_loaded'] += scenes_loaded
                     logger.info(f"Available scenes: {sorted(self.scenes.keys())}")
-                    self._log_scene_status()
+                    logger.info("Scenes loaded. Use /change_pattern to activate.")
                     self._notify_changes()
                     return True
                 else:
@@ -137,12 +134,10 @@ class SceneManager:
                 if not self.current_scene:
                     return
                 
-                # Update current scene animation
                 current_effect = self.current_scene.get_current_effect()
                 if current_effect:
                     current_effect.update_animation(delta_time)
                 
-                # Update any other scenes involved in dissolve transition
                 if self.dissolve_transition.is_active:
                     if (self.dissolve_transition.old_pattern and 
                         self.dissolve_transition.old_pattern.scene_id in self.scenes):
@@ -164,14 +159,14 @@ class SceneManager:
     # ==================== LED Output Methods ====================
     
     def get_rendered_led_array(self) -> List[List[int]]:
-        """Get final rendered LED array with dual pattern dissolve crossfade"""
+        """Get final rendered LED array with dissolve crossfade"""
         try:
             if self.dissolve_transition.is_active:
                 result = self.dissolve_transition.update_dissolve(time.time())
                 
                 if not self.dissolve_transition.is_active:
                     self.stats['dissolve_transitions_completed'] += 1
-                    logger.info("Dual pattern dissolve transition completed")
+                    logger.info("Pattern dissolve transition completed")
                 
                 return result
             else:
@@ -182,17 +177,15 @@ class SceneManager:
             return [[0, 0, 0] for _ in range(225)]
     
     def get_led_output_with_timing(self, current_time: float) -> List[List[int]]:
-        """Get LED output with time-based brightness and dual pattern crossfade"""
+        """Get LED output with time-based brightness and dissolve crossfade"""
         try:
             with self._lock:
                 if not self.current_scene:
                     return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
                 
-                # Check if dissolve is active
                 if self.dissolve_transition.is_active:
                     return self.dissolve_transition.update_dissolve(current_time)
                 
-                # Normal rendering when no dissolve
                 current_effect = self.current_scene.get_current_effect()
                 if not current_effect:
                     return [[0, 0, 0] for _ in range(self.current_scene.led_count)]
@@ -277,139 +270,209 @@ class SceneManager:
                 "transition_phase": self.dissolve_transition.phase.value if self.dissolve_transition.is_active else "completed"
             }
     
-    # ==================== Pattern Creation ====================
+    # ==================== Parameter-Only Change Methods ====================
     
-    def _create_current_pattern_state(self) -> Optional[PatternState]:
-        """Create pattern state for current scene configuration"""
-        if not self.current_scene:
-            return None
-        
-        return PatternState(
-            scene_id=self.current_scene_id,
-            effect_id=self.current_scene.current_effect_id,
-            palette_id=self.current_scene.current_palette_id
-        )
-    
-    def _start_dual_dissolve_if_enabled(self, old_pattern: PatternState, new_pattern: PatternState):
-        """Start dual pattern dissolve if pattern is set"""
-        if self.dissolve_patterns.current_pattern_id is not None:
-            pattern = self.dissolve_patterns.get_pattern(self.dissolve_patterns.current_pattern_id)
-            if pattern:
-                led_count = self.current_scene.led_count if self.current_scene else 225
-                self.dissolve_transition.start_dissolve(
-                    old_pattern,
-                    new_pattern,
-                    pattern,
-                    led_count
-                )
-    
-    # ==================== Scene Operations ====================
-    
-    def change_scene(self, scene_id: int) -> bool:
-        """Change scene with dual pattern dissolve crossfade if pattern is set"""
+    def change_scene_parameters_only(self, scene_id: int) -> bool:
+        """
+        Change scene parameters without triggering animation or dissolve
+        Used by /change_scene OSC command
+        """
         try:
             with self._lock:
                 if scene_id not in self.scenes:
-                    available_scenes = list(self.scenes.keys())
-                    logger.warning(f"Scene {scene_id} not found. Available: {available_scenes}")
+                    logger.warning(f"Scene {scene_id} not found for parameter change")
                     return False
-                
-                old_pattern = self._create_current_pattern_state()
-                old_scene_id = self.current_scene_id
                 
                 self.current_scene_id = scene_id
                 self.current_scene = self.scenes[scene_id]
                 
-                new_pattern = self._create_current_pattern_state()
-                
-                if old_pattern and new_pattern:
-                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern)
-                
-                self.stats['scene_switches'] += 1
-                self._log_scene_status()
+                logger.debug(f"Scene parameters set to {scene_id} (no dissolve trigger)")
                 self._notify_changes()
                 return True
                 
         except Exception as e:
-            logger.error(f"Error changing scene: {e}")
+            logger.error(f"Error changing scene parameters: {e}")
             self.stats['errors'] += 1
             return False
     
-    def change_effect(self, effect_id: int) -> bool:
-        """Change effect with dual pattern dissolve crossfade if pattern is set"""
+    def change_effect_parameters_only(self, effect_id: int) -> bool:
+        """
+        Change effect parameters without triggering animation or dissolve
+        Used by /change_effect OSC command
+        """
         try:
             with self._lock:
                 if not self.current_scene:
-                    logger.warning("No active scene for effect change")
+                    logger.warning("No active scene for effect parameter change")
                     return False
                 
-                available_effects = list(range(len(self.current_scene.effects)))
                 if effect_id < 0 or effect_id >= len(self.current_scene.effects):
-                    logger.warning(f"Effect ID {effect_id} invalid. Available effects: {available_effects}")
+                    logger.warning(f"Effect {effect_id} invalid for scene {self.current_scene_id}")
                     return False
-                
-                old_pattern = self._create_current_pattern_state()
-                old_effect_id = self.current_scene.current_effect_id
                 
                 self.current_scene.current_effect_id = effect_id
-                
-                new_pattern = self._create_current_pattern_state()
-                
-                if old_pattern and new_pattern:
-                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern)
-                    if self.dissolve_transition.is_active:
-                        logger.info(f"Effect {old_effect_id}→{effect_id} with dual pattern dissolve")
-                    else:
-                        logger.info(f"Effect {old_effect_id}→{effect_id} (direct)")
-                else:
-                    logger.info(f"Effect change to {effect_id} (direct)")
-                
-                self.stats['effect_changes'] += 1
-                self._log_scene_status()
                 self._notify_changes()
                 return True
                 
         except Exception as e:
-            logger.error(f"Error changing effect: {e}")
+            logger.error(f"Error changing effect parameters: {e}")
             self.stats['errors'] += 1
             return False
     
-    def change_palette(self, palette_id: int) -> bool:
-        """Change palette with dual pattern dissolve crossfade if pattern is set"""
+    def change_palette_parameters_only(self, palette_id: int) -> bool:
+        """
+        Change palette parameters without triggering animation or dissolve
+        Used by /change_palette OSC command
+        """
         try:
             with self._lock:
                 if not self.current_scene:
-                    logger.warning("No active scene for palette change")
+                    logger.warning("No active scene for palette parameter change")
                     return False
                 
                 if palette_id >= len(self.current_scene.palettes):
-                    logger.warning(f"Palette {palette_id} not found. Available: 0-{len(self.current_scene.palettes)-1}")
+                    logger.warning(f"Palette {palette_id} not found in scene {self.current_scene_id}")
                     return False
                 
-                old_pattern = self._create_current_pattern_state()
-                old_palette_id = self.current_scene.current_palette_id
                 self.current_scene.current_palette_id = palette_id
                 
-                new_pattern = self._create_current_pattern_state()
-                
-                if old_pattern and new_pattern:
-                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern)
-                    if self.dissolve_transition.is_active:
-                        logger.info(f"Palette {old_palette_id}→{palette_id} with dual pattern dissolve")
-                    else:
-                        logger.info(f"Palette {old_palette_id}→{palette_id} (direct)")
-                else:
-                    logger.info(f"Palette change to {palette_id} (direct)")
-                
-                self.stats['palette_changes'] += 1
-                self._log_scene_status()
+                logger.debug(f"Palette parameters set to {palette_id} (no dissolve trigger)")
                 self._notify_changes()
                 return True
                 
         except Exception as e:
-            logger.error(f"Error changing palette: {e}")
+            logger.error(f"Error changing palette parameters: {e}")
             self.stats['errors'] += 1
             return False
+    
+    # ==================== Pattern Change Methods ====================
+    
+    def apply_pattern_change(self, pattern_state) -> bool:
+        """
+        Apply pattern change to scene manager state
+        Used by /change_pattern OSC command
+        
+        Args:
+            pattern_state: PatternState with scene_id, effect_id, palette_id
+            
+        Returns:
+            bool: True if pattern was applied successfully
+        """
+        try:
+            with self._lock:
+                if pattern_state.scene_id not in self.scenes:
+                    logger.error(f"Scene {pattern_state.scene_id} not found")
+                    return False
+                
+                target_scene = self.scenes[pattern_state.scene_id]
+                
+                if pattern_state.effect_id >= len(target_scene.effects):
+                    logger.error(f"Effect {pattern_state.effect_id} not found in scene {pattern_state.scene_id}")
+                    return False
+                
+                if pattern_state.palette_id >= len(target_scene.palettes):
+                    logger.error(f"Palette {pattern_state.palette_id} not found in scene {pattern_state.scene_id}")
+                    return False
+                
+                self.current_scene_id = pattern_state.scene_id
+                self.current_scene = target_scene
+                self.current_scene.current_effect_id = pattern_state.effect_id
+                self.current_scene.current_palette_id = pattern_state.palette_id
+                
+                self.stats['pattern_changes'] += 1
+                logger.debug(f"Pattern applied: {pattern_state.scene_id}/{pattern_state.effect_id}/{pattern_state.palette_id}")
+                
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error applying pattern change: {e}")
+            self.stats['errors'] += 1
+            return False
+    
+    def start_fade_in_dissolve(self, pattern_state) -> bool:
+        """
+        Start fade-in dissolve for first-time pattern activation
+        Creates dissolve from black to new pattern
+        
+        Args:
+            pattern_state: Target pattern state
+            
+        Returns:
+            bool: True if dissolve was started, False if no dissolve pattern set
+        """
+        try:
+            if self.dissolve_patterns.current_pattern_id is None:
+                logger.debug("No dissolve pattern set - direct pattern activation")
+                return False
+            
+            pattern_data = self.dissolve_patterns.get_pattern(self.dissolve_patterns.current_pattern_id)
+            if not pattern_data:
+                logger.debug("Dissolve pattern not found - direct pattern activation")
+                return False
+            
+            black_pattern = PatternState(
+                scene_id=pattern_state.scene_id,
+                effect_id=pattern_state.effect_id,
+                palette_id=pattern_state.palette_id
+            )
+            
+            led_count = self.current_scene.led_count if self.current_scene else 225
+            
+            self.dissolve_transition.start_dissolve(
+                black_pattern,  
+                pattern_state,  
+                pattern_data,
+                led_count
+            )
+            
+            self.stats['fade_in_transitions'] += 1
+            logger.info(f"Fade-in dissolve started for pattern {pattern_state.scene_id}/{pattern_state.effect_id}/{pattern_state.palette_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error starting fade-in dissolve: {e}")
+            return False
+    
+    def start_crossfade_dissolve(self, old_pattern, new_pattern) -> bool:
+        """
+        Start crossfade dissolve between two patterns
+        Both patterns continue animating during transition
+        
+        Args:
+            old_pattern: Current pattern state
+            new_pattern: Target pattern state
+            
+        Returns:
+            bool: True if dissolve was started, False if no dissolve pattern set
+        """
+        try:
+            if self.dissolve_patterns.current_pattern_id is None:
+                logger.debug("No dissolve pattern set - direct pattern change")
+                return False
+            
+            pattern_data = self.dissolve_patterns.get_pattern(self.dissolve_patterns.current_pattern_id)
+            if not pattern_data:
+                logger.debug("Dissolve pattern not found - direct pattern change")
+                return False
+            
+            led_count = self.current_scene.led_count if self.current_scene else 225
+            
+            self.dissolve_transition.start_dissolve(
+                old_pattern,
+                new_pattern,
+                pattern_data,
+                led_count
+            )
+            
+            self.stats['crossfade_transitions'] += 1
+            logger.info(f"Crossfade dissolve started: {old_pattern.scene_id}/{old_pattern.effect_id}/{old_pattern.palette_id} -> {new_pattern.scene_id}/{new_pattern.effect_id}/{new_pattern.palette_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error starting crossfade dissolve: {e}")
+            return False
+    
+    # ==================== Legacy Scene Operations ====================
     
     def update_palette_color(self, palette_id: int, color_id: int, r: int, g: int, b: int) -> bool:
         """Update a color in the current scene's palette"""
@@ -442,6 +505,32 @@ class SceneManager:
             self.stats['errors'] += 1
             return False
     
+    # ==================== Helper Methods ====================
+    
+    def _create_current_pattern_state(self):
+        """Create pattern state for current scene configuration"""
+        if not self.current_scene:
+            return None
+        
+        return PatternState(
+            scene_id=self.current_scene_id,
+            effect_id=self.current_scene.current_effect_id,
+            palette_id=self.current_scene.current_palette_id
+        )
+    
+    def _start_legacy_dissolve_if_enabled(self, old_pattern, new_pattern):
+        """Start legacy dissolve if pattern is set (for backward compatibility)"""
+        if self.dissolve_patterns.current_pattern_id is not None:
+            pattern = self.dissolve_patterns.get_pattern(self.dissolve_patterns.current_pattern_id)
+            if pattern:
+                led_count = self.current_scene.led_count if self.current_scene else 225
+                self.dissolve_transition.start_dissolve(
+                    old_pattern,
+                    new_pattern,
+                    pattern,
+                    led_count
+                )
+    
     # ==================== Status and Information ====================
     
     def get_scene_info(self) -> Dict[str, Any]:
@@ -467,6 +556,34 @@ class SceneManager:
                 "available_palettes": list(range(len(self.current_scene.palettes))),
                 "available_scenes": list(self.scenes.keys()),
                 "dissolve_info": self.get_dissolve_info()
+            }
+    
+    def get_scene_info_for_scene(self, scene_id: int) -> Dict[str, Any]:
+        """
+        Get scene information for a specific scene (not necessarily current)
+        Used for validation in /change_pattern
+        """
+        with self._lock:
+            if scene_id not in self.scenes:
+                return {
+                    "error": f"Scene {scene_id} not found",
+                    "available_scenes": list(self.scenes.keys())
+                }
+            
+            scene = self.scenes[scene_id]
+            
+            available_effects = []
+            if hasattr(scene, 'effects'):
+                available_effects = list(range(len(scene.effects)))
+            
+            return {
+                "scene_id": scene_id,
+                "led_count": scene.led_count,
+                "fps": scene.fps,
+                "available_effects": available_effects,
+                "available_palettes": list(range(len(scene.palettes))),
+                "effects_count": len(scene.effects),
+                "palettes_count": len(scene.palettes)
             }
     
     def get_stats(self) -> Dict[str, Any]:
@@ -504,7 +621,7 @@ class SceneManager:
             if self.dissolve_transition.is_active:
                 self.dissolve_transition.is_active = False
                 self.dissolve_transition.phase = DissolvePhase.COMPLETED
-                logger.info("Dual pattern dissolve transition force stopped")
+                logger.info("Dissolve transition force stopped")
     
     def shutdown(self):
         """Shutdown the scene manager"""

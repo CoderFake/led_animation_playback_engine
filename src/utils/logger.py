@@ -44,7 +44,7 @@ class LoggerMode:
 
 class ColoredFormatter(logging.Formatter):
     """
-    Enhanced formatter with color support for terminal output
+    Formatter with color support for terminal output
     """
     
     COLORS = {

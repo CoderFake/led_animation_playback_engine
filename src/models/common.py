@@ -33,13 +33,23 @@ class EngineStats:
 
 @dataclass
 class PatternState:
-    """
-    Represents a pattern state during dissolve transition
-    Pattern = Effect + Palette + Scene combination
-    """
-    scene_id: int
-    effect_id: int
-    palette_id: int
+    """Current pattern state for tracking changes"""
+    scene_id: Optional[int] = None
+    effect_id: Optional[int] = None
+    palette_id: Optional[int] = None
+    
+    def __eq__(self, other):
+        if not isinstance(other, PatternState):
+            return False
+        return (self.scene_id == other.scene_id and 
+                self.effect_id == other.effect_id and 
+                self.palette_id == other.palette_id)
+    
+    def is_valid(self) -> bool:
+        """Check if pattern state is valid (all components set)"""
+        return (self.scene_id is not None and 
+                self.effect_id is not None and 
+                self.palette_id is not None)
 
 
 @dataclass
