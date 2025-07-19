@@ -574,8 +574,6 @@ class AnimationEngine:
         
         return led_colors
     
-    # ==================== OSC Handlers ====================
-    
     def handle_load_json(self, address: str, *args):
         """Handle loading JSON scenes with full state reset"""
         try:
@@ -634,7 +632,6 @@ class AnimationEngine:
     
     def handle_change_scene(self, address: str, *args):
         """Handle scene change without starting animation"""
-        
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -723,7 +720,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
 
     def handle_change_palette(self, address: str, *args):
-        """Handle palette change without starting animation (only sets palette parameters)"""
+        """Handle palette change without starting animation"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -768,18 +765,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_change_pattern(self, address: str, *args):
-        """
-        Handle pattern change using current scene manager state
-        
-        Usage: /change_pattern (no arguments)
-        
-        Logic:
-        - Uses current scene/effect/palette state from scene manager
-        - If no current state, uses defaults from current scene
-        - First time: starts animation with fade-in if dissolve pattern is set
-        - Subsequent times: triggers dissolve only if pattern combination changes
-        - No change in combination = no action
-        """
+        """Handle pattern change using current scene manager state"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -838,6 +824,7 @@ class AnimationEngine:
             
             if old_pattern == new_pattern:
                 LoggingUtils.log_info("Animation", f"Pattern unchanged: {new_pattern.scene_id}/{new_pattern.effect_id}/{new_pattern.palette_id} - no action")
+                OSCLogger.log_processed(address, "no_change")
                 return
             
             LoggingUtils.log_info("Animation", f"Pattern change: {old_pattern.scene_id}/{old_pattern.effect_id}/{old_pattern.palette_id} -> {new_pattern.scene_id}/{new_pattern.effect_id}/{new_pattern.palette_id}")
@@ -869,17 +856,16 @@ class AnimationEngine:
             
             self.current_pattern = new_pattern
             
-            LoggingUtils.log_info("Animation", f"Pattern activated: {new_pattern.scene_id}/{new_pattern.effect_id}/{new_pattern.palette_id}")
+            LoggingUtils.log_info("Animation", f"Pattern activated: Scene: {new_pattern.scene_id}, Effect: {new_pattern.effect_id}, Palette: {new_pattern.palette_id}")
             AnimationLogger.log_scene_change(new_pattern.scene_id, new_pattern.effect_id, new_pattern.palette_id)
             
-            self._notify_state_change()
             OSCLogger.log_processed(address, "success")
                 
         except Exception as e:
             error_message = f"Error in handle_change_pattern: {e}"
             LoggingUtils.log_error("Animation", error_message)
             OSCLogger.log_error(address, error_message)
-    
+            
     def handle_palette_color(self, address: str, palette_id: int, color_id: int, rgb: List[int]):
         """Handle palette color update"""
         try:

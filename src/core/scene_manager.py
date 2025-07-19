@@ -286,7 +286,6 @@ class SceneManager:
                 self.current_scene_id = scene_id
                 self.current_scene = self.scenes[scene_id]
                 
-                logger.debug(f"Scene parameters set to {scene_id} (no dissolve trigger)")
                 return True
                 
         except Exception as e:
