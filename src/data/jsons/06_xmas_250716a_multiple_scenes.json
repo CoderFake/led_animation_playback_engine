@@ -1,0 +1,2197 @@
+{
+  "scenes": [
+    {
+      "scene_id": 0,
+      "led_count": 205,
+      "fps": 60,
+      "current_effect_id": 1,
+      "current_palette_id": 0,
+      "palettes": [
+        [
+          [
+            204,
+            0,
+            0
+          ],
+          [
+            0,
+            51,
+            9
+          ],
+          [
+            255,
+            255,
+            255
+          ],
+          [
+            2,
+            128,
+            92
+          ],
+          [
+            6,
+            66,
+            49
+          ],
+          [
+            227,
+            179,
+            3
+          ]
+        ],
+        [
+          [
+            204,
+            0,
+            0
+          ],
+          [
+            0,
+            51,
+            9
+          ],
+          [
+            255,
+            255,
+            255
+          ],
+          [
+            12,
+            8,
+            94
+          ],
+          [
+            6,
+            18,
+            58
+          ],
+          [
+            227,
+            179,
+            3
+          ]
+        ],
+        [
+          [
+            204,
+            0,
+            0
+          ],
+          [
+            0,
+            51,
+            9
+          ],
+          [
+            255,
+            255,
+            255
+          ],
+          [
+            170,
+            16,
+            79
+          ],
+          [
+            77,
+            0,
+            78
+          ],
+          [
+            227,
+            179,
+            3
+          ]
+        ],
+        [
+          [
+            204,
+            0,
+            0
+          ],
+          [
+            0,
+            51,
+            9
+          ],
+          [
+            255,
+            255,
+            255
+          ],
+          [
+            141,
+            92,
+            0
+          ],
+          [
+            92,
+            60,
+            0
+          ],
+          [
+            227,
+            179,
+            3
+          ]
+        ],
+        [
+          [
+            204,
+            0,
+            0
+          ],
+          [
+            0,
+            51,
+            9
+          ],
+          [
+            255,
+            255,
+            255
+          ],
+          [
+            124,
+            16,
+            146
+          ],
+          [
+            88,
+            8,
+            47
+          ],
+          [
+            227,
+            179,
+            3
+          ]
+        ],
+        [
+          [
+            131,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            104,
+            104,
+            104
+          ],
+          [
+            6,
+            95,
+            70
+          ],
+          [
+            3,
+            41,
+            30
+          ],
+          [
+            0,
+            51,
+            9
+          ]
+        ],
+        [
+          [
+            117,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            104,
+            104,
+            104
+          ],
+          [
+            12,
+            8,
+            94
+          ],
+          [
+            6,
+            18,
+            58
+          ],
+          [
+            0,
+            51,
+            9
+          ]
+        ],
+        [
+          [
+            122,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            104,
+            104,
+            104
+          ],
+          [
+            104,
+            8,
+            47
+          ],
+          [
+            44,
+            1,
+            44
+          ],
+          [
+            0,
+            51,
+            9
+          ]
+        ],
+        [
+          [
+            121,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            104,
+            104,
+            104
+          ],
+          [
+            92,
+            60,
+            0
+          ],
+          [
+            63,
+            41,
+            0
+          ],
+          [
+            0,
+            51,
+            9
+          ]
+        ],
+        [
+          [
+            126,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            104,
+            104,
+            104
+          ],
+          [
+            70,
+            7,
+            83
+          ],
+          [
+            53,
+            3,
+            27
+          ],
+          [
+            0,
+            51,
+            9
+          ]
+        ],
+        [
+          [
+            0,
+            78,
+            14
+          ],
+          [
+            131,
+            0,
+            0
+          ],
+          [
+            255,
+            255,
+            255
+          ],
+          [
+            2,
+            128,
+            92
+          ],
+          [
+            6,
+            66,
+            49
+          ],
+          [
+            227,
+            179,
+            3
+          ]
+        ]
+      ],
+      "effects": [
+        {
+          "effect_id": 0,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                0.5,
+                0.5
+              ],
+              "length": [
+                205,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                0
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  300,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                12,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "2": {
+              "segment_id": 2,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                12,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                24,
+                218
+              ],
+              "initial_position": 24,
+              "current_position": 24.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "3": {
+              "segment_id": 3,
+              "color": [
+                5,
+                5,
+                2,
+                2
+              ],
+              "transparency": [
+                1,
+                1,
+                0.5,
+                0.5
+              ],
+              "length": [
+                12,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                47,
+                218
+              ],
+              "initial_position": 47,
+              "current_position": 47.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "4": {
+              "segment_id": 4,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                64,
+                218
+              ],
+              "initial_position": 64,
+              "current_position": 64.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "5": {
+              "segment_id": 5,
+              "color": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                0.5,
+                0.5
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                78,
+                218
+              ],
+              "initial_position": 78,
+              "current_position": 78.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "6": {
+              "segment_id": 6,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                94,
+                218
+              ],
+              "initial_position": 94,
+              "current_position": 94.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "7": {
+              "segment_id": 7,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                107,
+                218
+              ],
+              "initial_position": 107,
+              "current_position": 107.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "8": {
+              "segment_id": 8,
+              "color": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                0.5,
+                0.5
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                123,
+                218
+              ],
+              "initial_position": 123,
+              "current_position": 123.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "9": {
+              "segment_id": 9,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                133,
+                218
+              ],
+              "initial_position": 133,
+              "current_position": 133.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "10": {
+              "segment_id": 10,
+              "color": [
+                5,
+                5,
+                2,
+                2
+              ],
+              "transparency": [
+                1,
+                1,
+                0.5,
+                0.5
+              ],
+              "length": [
+                12,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                146,
+                218
+              ],
+              "initial_position": 146,
+              "current_position": 146.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "11": {
+              "segment_id": 11,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                12,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                169,
+                218
+              ],
+              "initial_position": 169,
+              "current_position": 169.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "12": {
+              "segment_id": 12,
+              "color": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                12,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                193,
+                218
+              ],
+              "initial_position": 193,
+              "current_position": 193.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "effect_id": 1,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                0.5,
+                0.5
+              ],
+              "length": [
+                205,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                0
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  300,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 201,
+              "current_position": 201.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "2": {
+              "segment_id": 2,
+              "color": [
+                4,
+                4,
+                4,
+                4
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 193,
+              "current_position": 193.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "3": {
+              "segment_id": 3,
+              "color": [
+                3,
+                3,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 185,
+              "current_position": 185.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "4": {
+              "segment_id": 4,
+              "color": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 177,
+              "current_position": 177.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "5": {
+              "segment_id": 5,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 169,
+              "current_position": 169.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "6": {
+              "segment_id": 6,
+              "color": [
+                3,
+                3,
+                3,
+                3
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 161,
+              "current_position": 161.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "7": {
+              "segment_id": 7,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 153,
+              "current_position": 153.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "8": {
+              "segment_id": 8,
+              "color": [
+                3,
+                3,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 146,
+              "current_position": 146.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "9": {
+              "segment_id": 9,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 141,
+              "current_position": 141.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "10": {
+              "segment_id": 10,
+              "color": [
+                4,
+                4,
+                2,
+                2
+              ],
+              "transparency": [
+                1,
+                1,
+                0.5,
+                0.5
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 133,
+              "current_position": 133.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "11": {
+              "segment_id": 11,
+              "color": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 125,
+              "current_position": 125.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "12": {
+              "segment_id": 12,
+              "color": [
+                3,
+                3,
+                2,
+                2
+              ],
+              "transparency": [
+                1,
+                1,
+                0.5,
+                0.5
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 117,
+              "current_position": 117.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "13": {
+              "segment_id": 13,
+              "color": [
+                4,
+                4,
+                5,
+                5
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                2,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 105,
+              "current_position": 92.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  0,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  100
+                ],
+                [
+                  100,
+                  100,
+                  0
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "effect_id": 2,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                0.5,
+                0.5
+              ],
+              "length": [
+                205,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                0
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  300,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 201,
+              "current_position": 201.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "2": {
+              "segment_id": 2,
+              "color": [
+                4,
+                4,
+                4,
+                4
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 193,
+              "current_position": 193.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "3": {
+              "segment_id": 3,
+              "color": [
+                5,
+                5,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 185,
+              "current_position": 185.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "4": {
+              "segment_id": 4,
+              "color": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 177,
+              "current_position": 177.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "5": {
+              "segment_id": 5,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 169,
+              "current_position": 169.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "6": {
+              "segment_id": 6,
+              "color": [
+                3,
+                3,
+                3,
+                3
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 161,
+              "current_position": 161.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "7": {
+              "segment_id": 7,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 153,
+              "current_position": 153.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "8": {
+              "segment_id": 8,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 146,
+              "current_position": 146.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "9": {
+              "segment_id": 9,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                218
+              ],
+              "initial_position": 141,
+              "current_position": 141.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "10": {
+              "segment_id": 10,
+              "color": [
+                4,
+                4,
+                2,
+                2
+              ],
+              "transparency": [
+                1,
+                1,
+                0.5,
+                0.5
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 133,
+              "current_position": 133.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "11": {
+              "segment_id": 11,
+              "color": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 125,
+              "current_position": 125.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "12": {
+              "segment_id": 12,
+              "color": [
+                5,
+                5,
+                2,
+                2
+              ],
+              "transparency": [
+                1,
+                1,
+                0.5,
+                0.5
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 117,
+              "current_position": 117.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "13": {
+              "segment_id": 13,
+              "color": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 105,
+              "current_position": 92.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  300,
+                  0,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  100
+                ],
+                [
+                  300,
+                  100,
+                  0
+                ]
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

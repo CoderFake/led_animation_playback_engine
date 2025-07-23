@@ -151,6 +151,7 @@ class Segment:
                     if self.move_speed < 0:
                         self.move_speed = abs(self.move_speed)
                         direction_changed = True
+                
                 elif self.current_position >= effective_max_pos:
                     self.current_position = effective_max_pos
                     if self.move_speed > 0:
@@ -160,18 +161,16 @@ class Segment:
                 if direction_changed:
                     self.reset_animation_timing()
             else:
-                range_size = effective_max_pos - min_pos
-                if range_size > 0:
-                    if self.current_position < min_pos:
+                if self.current_position < min_pos:
+                    range_size = effective_max_pos - min_pos
+                    if range_size > 0:
                         offset = min_pos - self.current_position
                         self.current_position = effective_max_pos - (offset % range_size)
-                    elif self.current_position > effective_max_pos:
+                elif self.current_position > effective_max_pos:
+                    range_size = effective_max_pos - min_pos
+                    if range_size > 0:
                         offset = self.current_position - effective_max_pos
                         self.current_position = min_pos + (offset % range_size)
-                else:
-                    self.current_position = min_pos
-        
-        self.current_position = max(-total_segment_length, self.current_position)
 
     def get_led_colors_with_timing(self, palette: List[List[int]], current_time: float) -> List[List[int]]:
         """Get LED colors with improved time-based brightness and palette handling"""

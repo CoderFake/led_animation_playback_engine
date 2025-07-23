@@ -299,8 +299,6 @@ class AnimationEngine:
                 actual_sleep_time = actual_loop_time - frame_time
                 
                 self.fps_balancer.update_timing(frame_time, actual_sleep_time, actual_loop_time)
-            
-            logger.info("Dual pattern animation loop stopped")
         
         except Exception as e:
             logger.error(f"FATAL ERROR in dual pattern animation loop: {e}")

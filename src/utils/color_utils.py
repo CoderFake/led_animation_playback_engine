@@ -30,15 +30,8 @@ class ColorUtils:
     
     @staticmethod
     def finalize_frame_blending(led_array):
-        """Calculate final averaged colors for all LEDs"""
         for led_index, contributions in ColorUtils._led_contributions.items():
-            if led_index < 0 or led_index >= len(led_array):
-                continue
-                
-            if len(contributions) == 1:
-                color, _ = contributions[0]
-                led_array[led_index] = [min(255, max(0, int(c))) for c in color[:3]]
-            else:
+            if led_index < len(led_array):
                 total_weight = sum(weight for _, weight in contributions)
                 if total_weight > 0:
                     avg_r = sum(color[0] * weight for color, weight in contributions) / total_weight
@@ -66,9 +59,12 @@ class ColorUtils:
     @staticmethod
     def validate_rgb_color(color) -> list:
         """Validate and clamp RGB color"""
-        if not color or len(color) < 3:
+        try:
+            if not color or not isinstance(color, (list, tuple)) or len(color) < 3:
+                return [0, 0, 0]
+            return ColorUtils.clamp_color(color)
+        except (TypeError, ValueError):
             return [0, 0, 0]
-        return ColorUtils.clamp_color(color)
     
     @staticmethod
     def apply_transparency(color, transparency: float) -> list:

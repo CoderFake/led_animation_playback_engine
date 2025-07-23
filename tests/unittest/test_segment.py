@@ -1,7 +1,6 @@
 """
 Unit tests for Segment class
 Tests segment color calculation, timing, positioning, and ColorUtils integration
-Updated for new codebase structure with time-based dimmer and fractional positioning
 """
 
 import unittest
@@ -284,6 +283,7 @@ class TestSegment(unittest.TestCase):
         expected_position = 5.0 + (10.0 * 0.1)
         self.assertAlmostEqual(segment.current_position, expected_position, places=2)
     
+
     def test_update_position_edge_reflect(self):
         """Test position update with edge reflection"""
         segment = Segment(
@@ -292,20 +292,21 @@ class TestSegment(unittest.TestCase):
             current_position=95.0,
             move_range=[0, 100],
             is_edge_reflect=True,
-            length=[3]  # Add length for boundary calculation
+            length=[3] 
         )
         
-        # Mock reset_animation_timing to track calls
         with patch.object(segment, 'reset_animation_timing') as mock_reset:
-            delta_time = 1.0  # 1 second - should hit boundary
+            delta_time = 1.0 
             segment.update_position(delta_time)
             
-            # Should hit upper boundary, but actual position depends on total segment length
-            # The boundary is adjusted by total segment length
-            expected_max = 100 - segment.get_total_led_count() + 1  # 100 - 3 + 1 = 98
-            self.assertLessEqual(segment.current_position, expected_max + 1)
-            self.assertTrue(segment.move_speed > 0)  # Speed should become positive
-            mock_reset.assert_called_once()  # Should reset timing on direction change
+            # Should hit upper boundary and reflect
+            # The boundary is adjusted by total segment length: 100 - 3 + 1 = 98
+            expected_max = 100 - segment.get_total_led_count() + 1  # 98
+            self.assertLessEqual(segment.current_position, expected_max)
+            
+            # After hitting upper boundary, speed should become negative (reflection)
+            self.assertTrue(segment.move_speed < 0)  
+            mock_reset.assert_called_once()  
     
     def test_update_position_wrap_around(self):
         """Test position update with wrap around"""
