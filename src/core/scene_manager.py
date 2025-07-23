@@ -39,6 +39,9 @@ class SceneManager:
         self.dual_calculator = DualPatternCalculator(self)
         
         self.dissolve_transition.set_calculator(self.dual_calculator)
+    
+        self.current_speed_percent = 100
+        self.original_move_speeds: Dict[str, Dict[str, float]] = {}
         
         self.stats = {
             'scenes_loaded': 0,
@@ -66,6 +69,13 @@ class SceneManager:
             except Exception as e:
                 logger.error(f"Error in change callback: {e}")
     
+    def set_speed_percent(self, speed_percent: int):
+        """Set current speed percentage for all animations"""
+        with self._lock:
+            old_speed = self.current_speed_percent
+            self.current_speed_percent = speed_percent
+            logger.info(f"Speed changed from {old_speed}% to {speed_percent}% ")
+
     # ==================== JSON Loading ====================
     
     def load_multiple_scenes_from_file(self, file_path: str) -> bool:
@@ -88,6 +98,8 @@ class SceneManager:
                 if not isinstance(scenes_data, list):
                     logger.error("Invalid JSON format: 'scenes' must be an array")
                     return False
+                
+                self.original_move_speeds.clear()
                 
                 scenes_loaded = 0
                 
@@ -131,32 +143,32 @@ class SceneManager:
     # ==================== Animation Update ====================
     
     def update_animation(self, delta_time: float):
-        """Update animation for current scene and dissolve transitions"""
+        """Update animation for current scene and dissolve transitions with proper speed control"""
         try:
             with self._lock:
                 if not self.current_scene:
                     return
                 
-                # Update current scene animation
+                base_delta_time = delta_time
+                
                 current_effect = self.current_scene.get_current_effect()
                 if current_effect:
-                    current_effect.update_animation(delta_time)
+                    current_effect.update_animation(base_delta_time)
                 
-                # Update any other scenes involved in dissolve transition
                 if self.dissolve_transition.is_active:
                     if (self.dissolve_transition.old_pattern and 
                         self.dissolve_transition.old_pattern.scene_id in self.scenes):
                         old_scene = self.scenes[self.dissolve_transition.old_pattern.scene_id]
                         if self.dissolve_transition.old_pattern.effect_id < len(old_scene.effects):
                             old_effect = old_scene.effects[self.dissolve_transition.old_pattern.effect_id]
-                            old_effect.update_animation(delta_time)
+                            old_effect.update_animation(base_delta_time)
                     
                     if (self.dissolve_transition.new_pattern and 
                         self.dissolve_transition.new_pattern.scene_id in self.scenes):
                         new_scene = self.scenes[self.dissolve_transition.new_pattern.scene_id]
                         if self.dissolve_transition.new_pattern.effect_id < len(new_scene.effects):
                             new_effect = new_scene.effects[self.dissolve_transition.new_pattern.effect_id]
-                            new_effect.update_animation(delta_time)
+                            new_effect.update_animation(base_delta_time)
                     
         except Exception as e:
             logger.error(f"Error updating animation: {e}")
@@ -291,11 +303,17 @@ class SceneManager:
         )
     
     def _start_dual_dissolve_if_enabled(self, old_pattern: PatternState, new_pattern: PatternState):
-        """Start dual pattern dissolve if pattern is set"""
+        """Start dual pattern dissolve if pattern is set - simplified version"""
         if self.dissolve_patterns.current_pattern_id is not None:
             pattern = self.dissolve_patterns.get_pattern(self.dissolve_patterns.current_pattern_id)
             if pattern:
                 led_count = self.current_scene.led_count if self.current_scene else 225
+                
+                logger.info(f"Starting dissolve transition: {old_pattern.scene_id}/{old_pattern.effect_id}/{old_pattern.palette_id} → {new_pattern.scene_id}/{new_pattern.effect_id}/{new_pattern.palette_id}")
+                
+                # No need to modify move_speeds - they stay as original JSON values
+                # Speed control is handled by delta_time in Animation Engine
+                
                 self.dissolve_transition.start_dissolve(
                     old_pattern,
                     new_pattern,
@@ -468,49 +486,9 @@ class SceneManager:
                 "available_scenes": list(self.scenes.keys()),
                 "dissolve_info": self.get_dissolve_info()
             }
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get scene manager statistics"""
-        with self._lock:
-            return self.stats.copy()
-    
+        
     def get_available_scenes(self) -> List[int]:
         """Get list of available scene IDs"""
         with self._lock:
             return list(self.scenes.keys())
     
-    def is_scene_loaded(self, scene_id: int) -> bool:
-        """Check if a scene is loaded"""
-        with self._lock:
-            return scene_id in self.scenes
-    
-    def reset_stats(self):
-        """Reset statistics"""
-        with self._lock:
-            for key in self.stats:
-                self.stats[key] = 0
-            logger.info("Statistics reset")
-    
-    def get_current_scene_led_count(self) -> int:
-        """Get LED count of current scene"""
-        with self._lock:
-            if self.current_scene:
-                return self.current_scene.led_count
-            return 225
-    
-    def force_stop_dissolve(self):
-        """Force stop current dissolve transition"""
-        with self._lock:
-            if self.dissolve_transition.is_active:
-                self.dissolve_transition.is_active = False
-                self.dissolve_transition.phase = DissolvePhase.COMPLETED
-                logger.info("Dual pattern dissolve transition force stopped")
-    
-    def shutdown(self):
-        """Shutdown the scene manager"""
-        with self._lock:
-            self.dissolve_transition.is_active = False
-            
-            self._change_callbacks.clear()
-            
-            logger.info("SceneManager shutdown complete")

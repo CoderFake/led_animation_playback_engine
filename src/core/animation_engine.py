@@ -801,7 +801,7 @@ class AnimationEngine:
             OSCLogger.log_error(address, error_message)
     
     def handle_set_speed_percent(self, address: str, *args):
-        """Handle speed change"""
+        """Handle speed change with proper scene manager integration"""
         try:
             OSCLogger.log_received(address, list(args))
             
@@ -824,6 +824,9 @@ class AnimationEngine:
                     old_speed = self.speed_percent
                     self.speed_percent = speed_percent
                     self.stats.speed_percent = speed_percent
+                    
+                    self.scene_manager.set_speed_percent(speed_percent)
+                    
                     self._notify_state_change()
                 
                 LoggingUtils.log_info("Animation", f"Successfully set animation speed from {old_speed}% to {self.speed_percent}%")
