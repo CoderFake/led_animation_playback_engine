@@ -1,6 +1,6 @@
 """
-SceneManager implementation with dual pattern dissolve crossfade support
-Handles scene/effect/palette changes with simultaneous animation of old and new patterns
+SceneManager implementation with pattern dissolve crossfade support
+Handles scene/effect/palette changes 
 """
 
 import json
@@ -11,7 +11,6 @@ from typing import Dict, List, Optional, Callable, Any
 
 from ..models.scene import Scene
 from ..models.common import DissolveTransition, DualPatternCalculator, PatternState
-from ..models.types import DissolvePhase
 from ..utils.logging import LoggingUtils
 from ..utils.dissolve_pattern import DissolvePatternManager
 from config.settings import EngineSettings
@@ -22,7 +21,7 @@ logger = LoggingUtils._get_logger("SceneManager")
 
 class SceneManager:
     """
-    Scene management with dual pattern dissolve crossfade transitions
+    Scene management with pattern dissolve crossfade transitions
     Handles loading, switching, and transitioning between patterns (Effect × Palette combinations)
     """
     
@@ -41,7 +40,8 @@ class SceneManager:
         self.dissolve_transition.set_calculator(self.dual_calculator)
     
         self.current_speed_percent = 100
-        self.original_move_speeds: Dict[str, Dict[str, float]] = {}
+        
+        self.original_scene_speeds: Dict[int, Dict[str, Dict[str, float]]] = {}
         
         self.stats = {
             'scenes_loaded': 0,
@@ -70,11 +70,82 @@ class SceneManager:
                 logger.error(f"Error in change callback: {e}")
     
     def set_speed_percent(self, speed_percent: int):
-        """Set current speed percentage for all animations"""
+        """Set current speed percentage and apply to current scene segments"""
         with self._lock:
             old_speed = self.current_speed_percent
             self.current_speed_percent = speed_percent
-            logger.info(f"Speed changed from {old_speed}% to {speed_percent}% ")
+            
+            if self.current_scene:
+                self._apply_speed_to_scene(self.current_scene_id, speed_percent)
+            
+            logger.info(f"Speed changed from {old_speed}% to {speed_percent}%")
+
+    def _store_original_speeds(self, scene_id: int):
+        """Store original move speeds for a scene"""
+        if scene_id not in self.scenes:
+            return
+            
+        scene = self.scenes[scene_id]
+        scene_speeds = {}
+        
+        for effect in scene.effects:
+            effect_speeds = {}
+            for segment_id, segment in effect.segments.items():
+                effect_speeds[segment_id] = segment.move_speed
+            scene_speeds[str(effect.effect_id)] = effect_speeds
+        
+        self.original_scene_speeds[scene_id] = scene_speeds
+    
+    def _apply_speed_to_current_effect(self, scene_id: int, speed_percent: int):
+        """Apply speed percentage only to current effect (used for effect changes without dissolve)"""
+        if scene_id not in self.scenes or scene_id not in self.original_scene_speeds:
+            return
+            
+        scene = self.scenes[scene_id]
+        original_speeds = self.original_scene_speeds[scene_id]
+        speed_multiplier = speed_percent / 100.0
+        
+        current_effect = scene.get_current_effect()
+        if current_effect:
+            effect_id_str = str(current_effect.effect_id)
+            if effect_id_str in original_speeds:
+                for segment_id, segment in current_effect.segments.items():
+                    if segment_id in original_speeds[effect_id_str]:
+                        original_speed = original_speeds[effect_id_str][segment_id]
+                        segment.move_speed = original_speed * speed_multiplier
+
+    def _apply_speed_to_scene(self, scene_id: int, speed_percent: int):
+        """Apply speed percentage to specific scene segments (used for effect/palette changes)"""
+        if scene_id not in self.scenes or scene_id not in self.original_scene_speeds:
+            return
+            
+        scene = self.scenes[scene_id]
+        original_speeds = self.original_scene_speeds[scene_id]
+        speed_multiplier = speed_percent / 100.0
+        
+        for effect in scene.effects:
+            effect_id_str = str(effect.effect_id)
+            if effect_id_str in original_speeds:
+                for segment_id, segment in effect.segments.items():
+                    if segment_id in original_speeds[effect_id_str]:
+                        original_speed = original_speeds[effect_id_str][segment_id]
+                        segment.move_speed = original_speed * speed_multiplier
+
+    def _restore_original_speeds(self, scene_id: int):
+        """Restore original move speeds for a scene (used for scene changes)"""
+        if scene_id not in self.scenes or scene_id not in self.original_scene_speeds:
+            return
+            
+        scene = self.scenes[scene_id]
+        original_speeds = self.original_scene_speeds[scene_id]
+        
+        for effect in scene.effects:
+            effect_id_str = str(effect.effect_id)
+            if effect_id_str in original_speeds:
+                for segment_id, segment in effect.segments.items():
+                    if segment_id in original_speeds[effect_id_str]:
+                        original_speed = original_speeds[effect_id_str][segment_id]
+                        segment.move_speed = original_speed
 
     # ==================== JSON Loading ====================
     
@@ -99,7 +170,7 @@ class SceneManager:
                     logger.error("Invalid JSON format: 'scenes' must be an array")
                     return False
                 
-                self.original_move_speeds.clear()
+                self.original_scene_speeds.clear()
                 
                 scenes_loaded = 0
                 
@@ -107,8 +178,9 @@ class SceneManager:
                     try:
                         scene = Scene.from_dict(scene_data)
                         self.scenes[scene.scene_id] = scene
+                        self._store_original_speeds(scene.scene_id)
+                        
                         scenes_loaded += 1
-                        logger.debug(f"Loaded scene {scene.scene_id}")
                     except Exception as e:
                         logger.error(f"Error loading scene: {e}")
                         continue
@@ -118,6 +190,8 @@ class SceneManager:
                         first_scene_id = min(self.scenes.keys())
                         self.current_scene_id = first_scene_id
                         self.current_scene = self.scenes[first_scene_id]
+                        
+                        self._restore_original_speeds(first_scene_id)
                     
                     self.stats['scenes_loaded'] += scenes_loaded
                     logger.info(f"Available scenes: {sorted(self.scenes.keys())}")
@@ -143,33 +217,52 @@ class SceneManager:
     # ==================== Animation Update ====================
     
     def update_animation(self, delta_time: float):
-        """Update animation for current scene and dissolve transitions with proper speed control"""
+        """
+        Update animation for current scene and dissolve transitions
+        
+        Logic:
+        - delta_time from animation_engine is already multiplied by speed_percent
+        - move_speed in segments is adjusted by speed_percent (current speed) or original (scene change fade in)
+        - To avoid double speed application, always pass original delta_time to effects
+        - Avoid updating same effect twice during dissolve (for palette changes)
+        """
         try:
             with self._lock:
                 if not self.current_scene:
                     return
-                
-                base_delta_time = delta_time
-                
-                current_effect = self.current_scene.get_current_effect()
-                if current_effect:
-                    current_effect.update_animation(base_delta_time)
+            
+                if self.current_speed_percent > 0:
+                    original_delta = delta_time / (self.current_speed_percent / 100.0)
+                else:
+                    original_delta = delta_time  
                 
                 if self.dissolve_transition.is_active:
+                    updated_effects = set() 
+                    
                     if (self.dissolve_transition.old_pattern and 
                         self.dissolve_transition.old_pattern.scene_id in self.scenes):
                         old_scene = self.scenes[self.dissolve_transition.old_pattern.scene_id]
                         if self.dissolve_transition.old_pattern.effect_id < len(old_scene.effects):
                             old_effect = old_scene.effects[self.dissolve_transition.old_pattern.effect_id]
-                            old_effect.update_animation(base_delta_time)
+                            effect_key = (self.dissolve_transition.old_pattern.scene_id, self.dissolve_transition.old_pattern.effect_id)
+                            if effect_key not in updated_effects:
+                                old_effect.update_animation(original_delta)
+                                updated_effects.add(effect_key)
                     
                     if (self.dissolve_transition.new_pattern and 
                         self.dissolve_transition.new_pattern.scene_id in self.scenes):
                         new_scene = self.scenes[self.dissolve_transition.new_pattern.scene_id]
                         if self.dissolve_transition.new_pattern.effect_id < len(new_scene.effects):
                             new_effect = new_scene.effects[self.dissolve_transition.new_pattern.effect_id]
-                            new_effect.update_animation(base_delta_time)
-                    
+                            effect_key = (self.dissolve_transition.new_pattern.scene_id, self.dissolve_transition.new_pattern.effect_id)
+                            if effect_key not in updated_effects:
+                                new_effect.update_animation(original_delta)
+                                updated_effects.add(effect_key)
+                else:
+                    current_effect = self.current_scene.get_current_effect()
+                    if current_effect:
+                        current_effect.update_animation(original_delta)
+                        
         except Exception as e:
             logger.error(f"Error updating animation: {e}")
     
@@ -200,11 +293,9 @@ class SceneManager:
                 if not self.current_scene:
                     return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
                 
-                # Check if dissolve is active
                 if self.dissolve_transition.is_active:
                     return self.dissolve_transition.update_dissolve(current_time)
                 
-                # Normal rendering when no dissolve
                 current_effect = self.current_scene.get_current_effect()
                 if not current_effect:
                     return [[0, 0, 0] for _ in range(self.current_scene.led_count)]
@@ -302,17 +393,25 @@ class SceneManager:
             palette_id=self.current_scene.current_palette_id
         )
     
-    def _start_dual_dissolve_if_enabled(self, old_pattern: PatternState, new_pattern: PatternState):
-        """Start dual pattern dissolve if pattern is set - simplified version"""
+    def _start_dual_dissolve_if_enabled(self, old_pattern: PatternState, new_pattern: PatternState, transition_type: str = "scene"):
+        """
+        Start dual pattern dissolve if pattern is set - with correct speed logic
+        
+        Logic:
+        - Fade out pattern (old): always keeps current speed (no changes)
+        - Fade in pattern (new): 
+          * Scene change: uses original JSON speeds (restore speeds)
+          * Effect/Palette change: keeps current speed (no changes - already correct)
+        
+        Args:
+            old_pattern: Old pattern state (will fade out)
+            new_pattern: New pattern state (will fade in)
+            transition_type: Type of transition ("scene", "effect", or "palette")
+        """
         if self.dissolve_patterns.current_pattern_id is not None:
             pattern = self.dissolve_patterns.get_pattern(self.dissolve_patterns.current_pattern_id)
             if pattern:
                 led_count = self.current_scene.led_count if self.current_scene else 225
-                
-                logger.info(f"Starting dissolve transition: {old_pattern.scene_id}/{old_pattern.effect_id}/{old_pattern.palette_id} → {new_pattern.scene_id}/{new_pattern.effect_id}/{new_pattern.palette_id}")
-                
-                # No need to modify move_speeds - they stay as original JSON values
-                # Speed control is handled by delta_time in Animation Engine
                 
                 self.dissolve_transition.start_dissolve(
                     old_pattern,
@@ -324,7 +423,11 @@ class SceneManager:
     # ==================== Scene Operations ====================
     
     def change_scene(self, scene_id: int) -> bool:
-        """Change scene with dual pattern dissolve crossfade if pattern is set"""
+        """
+        Change scene - speed logic handled in dissolve transition
+        - Old pattern (fade out): keeps current speed
+        - New pattern (fade in): uses original JSON speeds
+        """
         try:
             with self._lock:
                 if scene_id not in self.scenes:
@@ -341,7 +444,14 @@ class SceneManager:
                 new_pattern = self._create_current_pattern_state()
                 
                 if old_pattern and new_pattern:
-                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern)
+                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern, "scene")
+                    
+                    if not self.dissolve_transition.is_active:
+                        self._restore_original_speeds(scene_id)
+                        logger.info(f"Scene {old_scene_id}→{scene_id}")
+                else:
+                    self._restore_original_speeds(scene_id)
+                    logger.info(f"Scene change to {scene_id}")
                 
                 self.stats['scene_switches'] += 1
                 self._log_scene_status()
@@ -354,7 +464,7 @@ class SceneManager:
             return False
     
     def change_effect(self, effect_id: int) -> bool:
-        """Change effect with dual pattern dissolve crossfade if pattern is set"""
+        """Change effect with consistent speed handling during dissolve"""
         try:
             with self._lock:
                 if not self.current_scene:
@@ -374,13 +484,13 @@ class SceneManager:
                 new_pattern = self._create_current_pattern_state()
                 
                 if old_pattern and new_pattern:
-                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern)
+                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern, "effect")
                     if self.dissolve_transition.is_active:
-                        logger.info(f"Effect {old_effect_id}→{effect_id} with dual pattern dissolve")
+                        logger.info(f"Effect {old_effect_id}→{effect_id}")
                     else:
-                        logger.info(f"Effect {old_effect_id}→{effect_id} (direct)")
+                        logger.info(f"Effect {old_effect_id}→{effect_id}")
                 else:
-                    logger.info(f"Effect change to {effect_id} (direct)")
+                    logger.info(f"Effect change to {effect_id}")
                 
                 self.stats['effect_changes'] += 1
                 self._log_scene_status()
@@ -393,7 +503,7 @@ class SceneManager:
             return False
     
     def change_palette(self, palette_id: int) -> bool:
-        """Change palette with dual pattern dissolve crossfade if pattern is set"""
+        """Change palette - only affects colors, not animation speed"""
         try:
             with self._lock:
                 if not self.current_scene:
@@ -411,13 +521,13 @@ class SceneManager:
                 new_pattern = self._create_current_pattern_state()
                 
                 if old_pattern and new_pattern:
-                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern)
+                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern, "palette")
                     if self.dissolve_transition.is_active:
-                        logger.info(f"Palette {old_palette_id}→{palette_id} with dual pattern dissolve")
+                        logger.info(f"Palette {old_palette_id}→{palette_id}")
                     else:
-                        logger.info(f"Palette {old_palette_id}→{palette_id} (direct)")
+                        logger.info(f"Palette {old_palette_id}→{palette_id}")
                 else:
-                    logger.info(f"Palette change to {palette_id} (direct)")
+                    logger.info(f"Palette change to {palette_id}")
                 
                 self.stats['palette_changes'] += 1
                 self._log_scene_status()
@@ -491,4 +601,3 @@ class SceneManager:
         """Get list of available scene IDs"""
         with self._lock:
             return list(self.scenes.keys())
-    
