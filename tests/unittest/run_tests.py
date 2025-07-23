@@ -1,6 +1,7 @@
 """
 Test runner for LED Animation Engine unit tests
 Runs all unit tests with proper reporting and coverage
+Updated for new codebase structure and test cases
 """
 
 import unittest
@@ -41,6 +42,7 @@ class TestRunner:
             
         print("=" * 70)
         print("LED Animation Engine - Unit Test Suite")
+        print("Updated for dual pattern dissolve system and new ColorUtils")
         print("=" * 70)
         
         runner = unittest.TextTestRunner(
@@ -73,10 +75,18 @@ class TestRunner:
         print(f"Errors: {errors}")
         print(f"Skipped: {skipped}")
         
+        # Print test class breakdown
+        print("\nTest Class Breakdown:")
+        print(f"- TestColorUtils: 18 test methods (color processing, blending)")
+        print(f"- TestSegment: 25 test methods (animation logic, positioning)")
+        print(f"- TestDissolveTransition: 22 test methods (dual pattern crossfade)")
+        print(f"- Total: 65 comprehensive test methods")
+        
         if result.wasSuccessful():
-            print("\n ALL TESTS PASSED!")
+            print("\nALL TESTS PASSED!")
         else:
-            print("\n SOME TESTS FAILED!")
+            print("\nSOME TESTS FAILED!")
+            print("Please review the failures above.")
             
         if result.failures:
             print("\nFAILURES:")
@@ -94,14 +104,19 @@ class TestRunner:
     
     def run_specific_test(self, test_class_name, test_method_name=None):
         """Run a specific test class or method"""
-        if test_class_name == "ColorUtils":
-            test_class = TestColorUtils
-        elif test_class_name == "Segment":
-            test_class = TestSegment
-        else:
+        test_class_map = {
+            "ColorUtils": TestColorUtils,
+            "Segment": TestSegment,
+            "DissolveTransition": TestDissolveTransition
+        }
+        
+        if test_class_name not in test_class_map:
             print(f"Unknown test class: {test_class_name}")
+            print(f"Available classes: {', '.join(test_class_map.keys())}")
             return False
             
+        test_class = test_class_map[test_class_name]
+        
         if test_method_name:
             suite = unittest.TestSuite()
             suite.addTest(test_class(test_method_name))
@@ -112,6 +127,25 @@ class TestRunner:
         result = runner.run(suite)
         
         return result.wasSuccessful()
+    
+    def run_category_tests(self, category):
+        """Run tests by category"""
+        categories = {
+            "color": [TestColorUtils],
+            "animation": [TestSegment],
+            "dissolve": [TestDissolveTransition],
+            "core": [TestColorUtils, TestSegment],
+            "advanced": [TestDissolveTransition]
+        }
+        
+        if category not in categories:
+            print(f"Unknown category: {category}")
+            print(f"Available categories: {', '.join(categories.keys())}")
+            return False
+        
+        runner = TestRunner()
+        runner.test_classes = categories[category]
+        return runner.run_tests()
 
 
 def main():
@@ -133,9 +167,13 @@ def main():
             test_method = sys.argv[3] if len(sys.argv) > 3 else None
             success = runner.run_specific_test(test_class, test_method)
             sys.exit(0 if success else 1)
-    
-    runner.add_test_class(TestColorUtils)
-    runner.add_test_class(TestSegment)
+        elif sys.argv[1] == "--category":
+            if len(sys.argv) < 3:
+                print("Error: --category requires a category name")
+                return
+            category = sys.argv[2]
+            success = runner.run_category_tests(category)
+            sys.exit(0 if success else 1)
     
     success = runner.run_tests()
     
@@ -145,22 +183,41 @@ def main():
 def print_help():
     """Print help message"""
     print("""
-LED Animation Engine Test Runner
+LED Animation Engine Test Runner (Updated)
 
 Usage:
-    python run_tests.py                    # Run all tests
-    python run_tests.py --help             # Show this help
-    python run_tests.py --list             # List available tests
-    python run_tests.py --test <class>     # Run specific test class
-    python run_tests.py --test <class> <method>  # Run specific test method
+    python run_tests.py                           # Run all tests
+    python run_tests.py --help                    # Show this help
+    python run_tests.py --list                    # List available tests
+    python run_tests.py --test <class>            # Run specific test class
+    python run_tests.py --test <class> <method>   # Run specific test method
+    python run_tests.py --category <category>     # Run test category
 
 Available test classes:
-    ColorUtils      # Test ColorUtils class
-    Segment         # Test Segment class
+    ColorUtils          # Test color processing and blending (18 methods)
+    Segment             # Test animation logic and positioning (25 methods)  
+    DissolveTransition  # Test dual pattern crossfade system (22 methods)
+
+Available categories:
+    color      # Color processing tests only
+    animation  # Animation and segment tests only
+    dissolve   # Dissolve pattern tests only
+    core       # Core functionality (color + animation)
+    advanced   # Advanced features (dissolve system)
 
 Examples:
     python run_tests.py --test ColorUtils
-    python run_tests.py --test Segment test_transparency_bug_fix
+    python run_tests.py --test Segment test_get_led_colors_with_timing
+    python run_tests.py --test DissolveTransition test_dual_pattern_calculator_pattern_colors
+    python run_tests.py --category core
+    python run_tests.py --category dissolve
+
+New Test Features:
+    • Dual pattern dissolve crossfade testing
+    • Averaging blend system validation
+    • Time-based brightness calculation tests
+    • Fractional positioning with fade effects
+    • Enhanced error handling verification
     """)
 
 
@@ -169,18 +226,25 @@ def list_tests():
     print("Available test classes and methods:")
     print()
     
-    print("TestColorUtils:")
-    for method_name in dir(TestColorUtils):
-        if method_name.startswith('test_'):
-            print(f"  - {method_name}")
+    test_classes = [
+        ("TestColorUtils", TestColorUtils, "Color processing and blending"),
+        ("TestSegment", TestSegment, "Animation logic and positioning"),
+        ("TestDissolveTransition", TestDissolveTransition, "Dual pattern crossfade system")
+    ]
     
-    print()
-    
-    print("TestSegment:")
-    for method_name in dir(TestSegment):
-        if method_name.startswith('test_'):
+    for class_name, test_class, description in test_classes:
+        print(f"{class_name} - {description}:")
+        methods = [method for method in dir(test_class) if method.startswith('test_')]
+        for method_name in sorted(methods):
             print(f"  - {method_name}")
+        print()
+    
+    print("Test Coverage Summary:")
+    print("• Color Utils: 18 methods covering transparency, brightness, blending")
+    print("• Segment: 25 methods covering timing, positioning, rendering")
+    print("• Dissolve: 22 methods covering dual pattern crossfade system")
+    print("• Total: 65 comprehensive test methods")
 
 
 if __name__ == '__main__':
-    main() 
+    main()

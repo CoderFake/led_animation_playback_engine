@@ -15,7 +15,7 @@ from src.utils.color_utils import ColorUtils
 
 
 class TestColorUtils(unittest.TestCase):
-    """Test ColorUtils class functionality"""
+    """Test ColorUtils class functionality with updated methods"""
     
     def setUp(self):
         """Set up test fixtures"""
@@ -34,6 +34,21 @@ class TestColorUtils(unittest.TestCase):
             [0, 0, 0],
             [255, 255, 255]
         ]
+    
+    def test_clamp_color_value(self):
+        """Test single color value clamping"""
+        self.assertEqual(ColorUtils.clamp_color_value(255), 255)
+        self.assertEqual(ColorUtils.clamp_color_value(0), 0)
+        self.assertEqual(ColorUtils.clamp_color_value(-10), 0)
+        self.assertEqual(ColorUtils.clamp_color_value(300), 255)
+        self.assertEqual(ColorUtils.clamp_color_value(128), 128)
+    
+    def test_clamp_color(self):
+        """Test RGB color clamping"""
+        self.assertEqual(ColorUtils.clamp_color([255, 128, 64]), [255, 128, 64])
+        self.assertEqual(ColorUtils.clamp_color([300, -10, 128]), [255, 0, 128])
+        self.assertEqual(ColorUtils.clamp_color([100, 500, -50]), [100, 255, 0])
+        self.assertEqual(ColorUtils.clamp_color([0, 0, 0]), [0, 0, 0])
     
     def test_validate_rgb_color(self):
         """Test RGB color validation"""
@@ -110,6 +125,32 @@ class TestColorUtils(unittest.TestCase):
         self.assertEqual(ColorUtils.apply_brightness(base_color, -0.5), [0, 0, 0])        # Clamped to 0.0
         self.assertEqual(ColorUtils.apply_brightness(base_color, 1.5), [255, 128, 64])   # Clamped to 1.0
     
+    def test_calculate_segment_color(self):
+        """Test complete segment color calculation"""
+        base_color = [255, 128, 64]
+        
+        # Test with no transparency and full brightness
+        result = ColorUtils.calculate_segment_color(base_color, 0.0, 1.0)
+        self.assertEqual(result, [255, 128, 64])
+        
+        # Test with transparency and brightness
+        result = ColorUtils.calculate_segment_color(base_color, 0.5, 0.8)
+        # Expected: apply_transparency first, then brightness
+        # Step 1: [255, 128, 64] * (1-0.5) = [127, 64, 32]
+        # Step 2: [127, 64, 32] * 0.8 = [101, 51, 25]
+        expected = [101, 51, 25]
+        self.assertEqual(result, expected)
+        
+        # Test with full transparency (should be black)
+        result = ColorUtils.calculate_segment_color(base_color, 1.0, 1.0)
+        self.assertEqual(result, [0, 0, 0])
+        
+        # Test with invalid inputs (should clamp)
+        result = ColorUtils.calculate_segment_color([300, -10, 128], 0.5, 0.5)
+        # First clamp to [255, 0, 128], then apply transparency and brightness
+        expected = [int(255 * 0.5 * 0.5), int(0 * 0.5 * 0.5), int(128 * 0.5 * 0.5)]
+        self.assertEqual(result, expected)
+    
     def test_apply_master_brightness(self):
         """Test master brightness application"""
         base_color = [255, 128, 64]
@@ -142,102 +183,6 @@ class TestColorUtils(unittest.TestCase):
         # Test invalid fade factors (should clamp)
         self.assertEqual(ColorUtils.apply_fade_factor(base_color, -0.5), [0, 0, 0])      # Clamped to 0.0
         self.assertEqual(ColorUtils.apply_fade_factor(base_color, 1.5), [255, 128, 64])  # Clamped to 1.0
-    
-    def test_calculate_segment_color(self):
-        """Test complete segment color calculation"""
-        base_color = [255, 128, 64]
-        
-        # Test with no transparency and full brightness
-        result = ColorUtils.calculate_segment_color(base_color, 0.0, 1.0)
-        self.assertEqual(result, [255, 128, 64])
-        
-        # Test with transparency and brightness
-        result = ColorUtils.calculate_segment_color(base_color, 0.5, 0.8)
-        # Expected: apply_transparency first, then brightness (double truncation)
-        # Step 1: [255, 128, 64] * (1-0.5) = [127, 64, 32] (truncated)
-        # Step 2: [127, 64, 32] * 0.8 = [101, 51, 25] (truncated)
-        expected = [101, 51, 25]
-        self.assertEqual(result, expected)
-        
-        # Test with full transparency (should be black)
-        result = ColorUtils.calculate_segment_color(base_color, 1.0, 1.0)
-        self.assertEqual(result, [0, 0, 0])
-        
-        # Test with invalid inputs
-        result = ColorUtils.calculate_segment_color([300, -10, 128], 0.5, 0.5)
-        expected = [int(255 * 0.5 * 0.5), int(0 * 0.5 * 0.5), int(128 * 0.5 * 0.5)]
-        self.assertEqual(result, expected)
-    
-    def test_calculate_transition_color(self):
-        """Test transition color blending"""
-        from_color = [255, 0, 0]    # Red
-        to_color = [0, 255, 0]      # Green
-        
-        # Test transition progress
-        result = ColorUtils.calculate_transition_color(from_color, to_color, 0.0)
-        self.assertEqual(result, [255, 0, 0])  # Full from_color
-        
-        result = ColorUtils.calculate_transition_color(from_color, to_color, 1.0)
-        self.assertEqual(result, [0, 255, 0])  # Full to_color
-        
-        result = ColorUtils.calculate_transition_color(from_color, to_color, 0.5)
-        self.assertEqual(result, [127, 127, 0])  # 50% blend
-        
-        # Test invalid progress values (should clamp)
-        result = ColorUtils.calculate_transition_color(from_color, to_color, -0.5)
-        self.assertEqual(result, [255, 0, 0])  # Clamped to 0.0
-        
-        result = ColorUtils.calculate_transition_color(from_color, to_color, 1.5)
-        self.assertEqual(result, [0, 255, 0])  # Clamped to 1.0
-    
-    def test_calculate_fractional_fade_color(self):
-        """Test fractional positioning fade effect"""
-        base_color = [255, 128, 64]
-        fractional_part = 0.3
-        
-        # Test first LED (fade by fractional_part)
-        result = ColorUtils.calculate_fractional_fade_color(base_color, fractional_part, True, False)
-        expected = [int(255 * 0.3), int(128 * 0.3), int(64 * 0.3)]
-        self.assertEqual(result, expected)
-        
-        # Test last LED (fade by 1.0 - fractional_part)
-        result = ColorUtils.calculate_fractional_fade_color(base_color, fractional_part, False, True)
-        expected = [int(255 * 0.7), int(128 * 0.7), int(64 * 0.7)]
-        self.assertEqual(result, expected)
-        
-        # Test middle LED (no fade)
-        result = ColorUtils.calculate_fractional_fade_color(base_color, fractional_part, False, False)
-        self.assertEqual(result, [255, 128, 64])
-        
-        # Test single LED (both first and last)
-        result = ColorUtils.calculate_fractional_fade_color(base_color, fractional_part, True, True)
-        self.assertEqual(result, [255, 128, 64])  # No fade for single LED
-    
-    def test_add_colors_to_led_array(self):
-        """Test adding colors to LED array"""
-        led_array = [
-            [100, 50, 25],
-            [0, 0, 0],
-            [200, 100, 50]
-        ]
-        
-        # Test normal addition
-        ColorUtils.add_colors_to_led_array(led_array, 1, [50, 100, 25])
-        self.assertEqual(led_array[1], [50, 100, 25])
-        
-        # Test additive blending
-        ColorUtils.add_colors_to_led_array(led_array, 0, [50, 100, 25])
-        self.assertEqual(led_array[0], [150, 150, 50])
-        
-        # Test color clamping (should not exceed 255)
-        ColorUtils.add_colors_to_led_array(led_array, 2, [100, 200, 250])
-        self.assertEqual(led_array[2], [255, 255, 255])
-        
-        # Test invalid indices (should not crash)
-        ColorUtils.add_colors_to_led_array(led_array, -1, [50, 100, 25])
-        ColorUtils.add_colors_to_led_array(led_array, 10, [50, 100, 25])
-        # Array should remain unchanged for invalid indices
-        self.assertEqual(len(led_array), 3)
     
     def test_count_active_leds(self):
         """Test counting active LEDs"""
@@ -288,7 +233,94 @@ class TestColorUtils(unittest.TestCase):
         result = ColorUtils.apply_colors_to_array(led_colors, 0)
         expected = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
         self.assertEqual(result, expected)
+    
+    def test_reset_frame_contributions(self):
+        """Test frame contributions reset"""
+        # Add some contributions first
+        ColorUtils._led_contributions = {0: [([255, 0, 0], 1.0)], 1: [([0, 255, 0], 0.5)]}
+        
+        # Reset should clear all contributions
+        ColorUtils.reset_frame_contributions()
+        self.assertEqual(len(ColorUtils._led_contributions), 0)
+    
+    def test_add_colors_to_led_array_single_contribution(self):
+        """Test adding single color contribution to LED array"""
+        ColorUtils.reset_frame_contributions()
+        led_array = [[0, 0, 0] for _ in range(5)]
+        
+        # Add single contribution
+        ColorUtils.add_colors_to_led_array(led_array, 1, [255, 128, 64], 1.0)
+        
+        # Finalize should apply the single contribution directly
+        ColorUtils.finalize_frame_blending(led_array)
+        
+        self.assertEqual(led_array[1], [255, 128, 64])
+        self.assertEqual(led_array[0], [0, 0, 0])  # Unchanged
+        self.assertEqual(led_array[2], [0, 0, 0])  # Unchanged
+    
+    def test_add_colors_to_led_array_multiple_contributions(self):
+        """Test adding multiple color contributions for averaging"""
+        ColorUtils.reset_frame_contributions()
+        led_array = [[0, 0, 0] for _ in range(5)]
+        
+        # Add multiple contributions to same LED
+        ColorUtils.add_colors_to_led_array(led_array, 1, [255, 0, 0], 1.0)    # Red, weight 1.0
+        ColorUtils.add_colors_to_led_array(led_array, 1, [0, 255, 0], 1.0)    # Green, weight 1.0
+        
+        # Finalize should average the contributions
+        ColorUtils.finalize_frame_blending(led_array)
+        
+        # Expected: (255*1.0 + 0*1.0)/(1.0+1.0) = 127 for R
+        #           (0*1.0 + 255*1.0)/(1.0+1.0) = 127 for G
+        #           (0*1.0 + 0*1.0)/(1.0+1.0) = 0 for B
+        self.assertEqual(led_array[1], [127, 127, 0])
+    
+    def test_add_colors_to_led_array_weighted_contributions(self):
+        """Test weighted color contributions"""
+        ColorUtils.reset_frame_contributions()
+        led_array = [[0, 0, 0] for _ in range(5)]
+        
+        # Add weighted contributions
+        ColorUtils.add_colors_to_led_array(led_array, 2, [255, 0, 0], 0.3)    # Red, weight 0.3
+        ColorUtils.add_colors_to_led_array(led_array, 2, [0, 255, 0], 0.7)    # Green, weight 0.7
+        
+        # Finalize should apply weighted average
+        ColorUtils.finalize_frame_blending(led_array)
+        
+        # Expected: (255*0.3 + 0*0.7)/(0.3+0.7) = 76 for R
+        #           (0*0.3 + 255*0.7)/(0.3+0.7) = 178 for G
+        #           (0*0.3 + 0*0.7)/(0.3+0.7) = 0 for B
+        self.assertEqual(led_array[2], [76, 178, 0])
+    
+    def test_add_colors_to_led_array_out_of_bounds(self):
+        """Test adding colors with out-of-bounds indices"""
+        ColorUtils.reset_frame_contributions()
+        led_array = [[0, 0, 0] for _ in range(3)]
+        
+        # Try to add to invalid indices
+        ColorUtils.add_colors_to_led_array(led_array, -1, [255, 0, 0])
+        ColorUtils.add_colors_to_led_array(led_array, 5, [0, 255, 0])
+        
+        # Should not crash and array should remain unchanged
+        ColorUtils.finalize_frame_blending(led_array)
+        
+        for color in led_array:
+            self.assertEqual(color, [0, 0, 0])
+    
+    def test_finalize_frame_blending_zero_weight(self):
+        """Test finalize with zero total weight"""
+        ColorUtils.reset_frame_contributions()
+        led_array = [[100, 100, 100] for _ in range(3)]
+        
+        # Manually add contribution with zero weight
+        ColorUtils._led_contributions[1] = [([255, 0, 0], 0.0)]
+        
+        # Should handle zero weight gracefully
+        ColorUtils.finalize_frame_blending(led_array)
+        
+        # Should result in black due to zero weight
+        self.assertEqual(led_array[1], [0, 0, 0])
 
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()
