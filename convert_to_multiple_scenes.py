@@ -3,6 +3,66 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any
 
+def convert_dimmer_time(old_format: List[int]) -> List[List[int]]:
+    """
+    Convert old system (position-based) to new system (transition-based)
+    
+    Old: [fade_in_start, fade_in_end, fade_out_start, fade_out_end, cycle_length]
+    New: [[duration, start_brightness, end_brightness]]
+    """
+    if not old_format or len(old_format) < 5:
+        return [[100, 100, 100]]
+    
+    fade_in_start = old_format[0]
+    fade_in_end = old_format[1] 
+    fade_out_start = old_format[2]
+    fade_out_end = old_format[3]
+    cycle_length = old_format[4]
+    
+    if cycle_length <= 0:
+        return [[100, 100, 100]]
+    
+    if fade_in_start == fade_in_end and fade_out_start == fade_out_end:
+        if fade_in_end == 0 and fade_out_start >= cycle_length:
+            return [[cycle_length, 100, 100]]
+        
+        new_format = []
+        
+        if fade_in_end > 0:
+            new_format.append([fade_in_end, 0, 0])
+        
+        if fade_out_start > fade_in_end:
+            new_format.append([fade_out_start - fade_in_end, 100, 100])
+        
+        if cycle_length > fade_out_start:
+            new_format.append([cycle_length - fade_out_start, 0, 0])
+            
+        return new_format if new_format else [[cycle_length, 100, 100]]
+    
+    new_format = []
+    current_time = 0
+    
+    if fade_in_start > current_time:
+        new_format.append([fade_in_start - current_time, 0, 0])
+        current_time = fade_in_start
+    
+    if fade_in_end > current_time:
+        new_format.append([fade_in_end - current_time, 0, 100])
+        current_time = fade_in_end
+    
+    if fade_out_start > current_time:
+        new_format.append([fade_out_start - current_time, 100, 100])
+        current_time = fade_out_start
+    
+    if fade_out_end > current_time:
+        new_format.append([fade_out_end - current_time, 100, 0])
+        current_time = fade_out_end
+    
+    if cycle_length > current_time:
+        new_format.append([cycle_length - current_time, 0, 0])
+    
+    return new_format if new_format else [[cycle_length, 100, 100]]
+
 def convert_old_format_to_multiple_scenes(old_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Convert old JSON format to new multiple_scenes format
@@ -14,8 +74,8 @@ def convert_old_format_to_multiple_scenes(old_data: Dict[str, Any]) -> Dict[str,
         Converted data in multiple_scenes format
     """
     
-    scene_id = old_data.get("scene_ID", 0) - 1 
-    current_effect_id = old_data.get("current_effect_ID", 1) - 1  
+    scene_id = old_data.get("scene_ID", 1) - 1
+    current_effect_id = old_data.get("current_effect_ID", 1) - 1
     current_palette = old_data.get("current_palette", "A")
     
     palettes_dict = old_data.get("palettes", {})
@@ -35,9 +95,7 @@ def convert_old_format_to_multiple_scenes(old_data: Dict[str, Any]) -> Dict[str,
     sorted_effect_items = sorted(effects_dict.items(), key=lambda x: int(x[0]))
     
     for effect_key, effect_data in sorted_effect_items:
-        effect_id = effect_data.get("effect_ID", int(effect_key)) - 1 
-        led_count = effect_data.get("led_count", 205)
-        fps = effect_data.get("fps", 60)
+        effect_id = int(effect_key) - 1
         
         segments_dict = effect_data.get("segments", {})
         converted_segments = {}
@@ -45,41 +103,22 @@ def convert_old_format_to_multiple_scenes(old_data: Dict[str, Any]) -> Dict[str,
         sorted_segment_items = sorted(segments_dict.items(), key=lambda x: int(x[0]))
         
         for seg_key, seg_data in sorted_segment_items:
-            segment_id = seg_data.get("segment_ID", int(seg_key)) - 1 
+            segment_id = int(seg_key) - 1
             
             converted_segment = {
                 "segment_id": segment_id,
                 "color": seg_data.get("color", [0]),
-                "transparency": seg_data.get("transparency", [1.0]),
+                "transparency": [1.0 - float(t) for t in seg_data.get("transparency", [1.0])],
                 "length": seg_data.get("length", [1]),
                 "move_speed": float(seg_data.get("move_speed", 0)),
-                "move_range": seg_data.get("move_range", [0, 0]),
+                "move_range": seg_data.get("move_range", [0, 224]),
                 "initial_position": seg_data.get("initial_position", 0),
-                "current_position": float(seg_data.get("current_position", 0)),
+                "current_position": float(seg_data.get("current_position", seg_data.get("initial_position", 0))),
                 "is_edge_reflect": seg_data.get("is_edge_reflect", True)
             }
             
             dimmer_time_old = seg_data.get("dimmer_time", [0, 0, 100, 100, 100])
-            
-            if len(dimmer_time_old) >= 5:
-                start_time, fade_in_time, on_time, fade_out_time, end_time = dimmer_time_old[:5]
-                
-                dimmer_time_new = []
-                
-                if fade_in_time > start_time:
-                    dimmer_time_new.append([fade_in_time - start_time, 0, 100])
-                
-                if on_time > fade_in_time:
-                    dimmer_time_new.append([on_time - fade_in_time, 100, 100])
-                
-                if fade_out_time > on_time:
-                    dimmer_time_new.append([fade_out_time - on_time, 100, 0])
-                
-                if not dimmer_time_new:
-                    dimmer_time_new = [[100, 100, 100]]
-            else:
-                dimmer_time_new = [[100, 100, 100]]
-            
+            dimmer_time_new = convert_dimmer_time(dimmer_time_old)
             converted_segment["dimmer_time"] = dimmer_time_new
             
             converted_segments[str(segment_id)] = converted_segment
@@ -169,7 +208,7 @@ def main():
     
     if len(sys.argv) < 2:
         print("Usage: python convert_to_multiple_scenes.py <input_file> [output_file]")
-        print("Example: python convert_to_multiple_scenes.py 03_summer_250710a.json")
+        print("Example: python convert_to_multiple_scenes.py 02.flower_250722a.json")
         sys.exit(1)
     
     input_file = sys.argv[1]

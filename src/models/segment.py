@@ -81,21 +81,18 @@ class Segment:
         self.segment_start_time = time.time()
     
     def get_brightness_at_time(self, current_time: float) -> float:
-        """Get brightness based on elapsed time since segment start - improved version"""
+        """
+        Calculate brightness based on transition-based dimmer_time format
+        """
         try:
             if not self.dimmer_time:
                 return 1.0
-            
+                
             elapsed_ms = (current_time - self.segment_start_time) * 1000
             
             total_cycle_ms = sum(max(1, transition[0]) for transition in self.dimmer_time)
             if total_cycle_ms <= 0:
                 return 1.0
-            
-            if elapsed_ms > 0 and elapsed_ms % total_cycle_ms == 0:
-                if self.dimmer_time:
-                    last_brightness = self.dimmer_time[-1][2]
-                    return max(0.0, min(1.0, last_brightness / 100.0))
             
             elapsed_ms = elapsed_ms % total_cycle_ms
             
@@ -112,8 +109,7 @@ class Segment:
                     
                     brightness = start_brightness + (end_brightness - start_brightness) * progress
                     result = brightness / 100.0
-                    result = max(0.0, min(1.0, result))
-                    return result
+                    return max(0.0, min(1.0, result))
                     
                 current_time_ms += duration_ms
             
@@ -125,7 +121,7 @@ class Segment:
             
         except Exception as e:
             return 1.0
-    
+        
     def update_position(self, delta_time: float):
         """Update position with enhanced boundary enforcement"""
         if abs(self.move_speed) < 0.001:

@@ -1,0 +1,2025 @@
+{
+  "scenes": [
+    {
+      "scene_id": 0,
+      "led_count": 205,
+      "fps": 60,
+      "current_effect_id": 0,
+      "current_palette_id": 0,
+      "palettes": [
+        [
+          [
+            139,
+            125,
+            0
+          ],
+          [
+            41,
+            99,
+            0
+          ],
+          [
+            80,
+            16,
+            0
+          ],
+          [
+            0,
+            51,
+            75
+          ],
+          [
+            10,
+            58,
+            0
+          ],
+          [
+            100,
+            100,
+            100
+          ]
+        ],
+        [
+          [
+            0,
+            116,
+            18
+          ],
+          [
+            150,
+            134,
+            0
+          ],
+          [
+            70,
+            90,
+            0
+          ],
+          [
+            0,
+            51,
+            75
+          ],
+          [
+            10,
+            56,
+            0
+          ],
+          [
+            99,
+            99,
+            99
+          ]
+        ],
+        [
+          [
+            0,
+            122,
+            39
+          ],
+          [
+            70,
+            90,
+            0
+          ],
+          [
+            80,
+            16,
+            0
+          ],
+          [
+            0,
+            48,
+            36
+          ],
+          [
+            0,
+            56,
+            18
+          ],
+          [
+            95,
+            95,
+            95
+          ]
+        ],
+        [
+          [
+            141,
+            52,
+            0
+          ],
+          [
+            136,
+            138,
+            0
+          ],
+          [
+            99,
+            57,
+            0
+          ],
+          [
+            39,
+            51,
+            56
+          ],
+          [
+            59,
+            48,
+            0
+          ],
+          [
+            92,
+            92,
+            92
+          ]
+        ],
+        [
+          [
+            138,
+            45,
+            0
+          ],
+          [
+            82,
+            52,
+            21
+          ],
+          [
+            85,
+            73,
+            14
+          ],
+          [
+            145,
+            140,
+            0
+          ],
+          [
+            70,
+            25,
+            0
+          ],
+          [
+            61,
+            0,
+            0
+          ]
+        ]
+      ],
+      "effects": [
+        {
+          "effect_id": 0,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [
+                4,
+                4,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                205,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                0
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "2": {
+              "segment_id": 2,
+              "color": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 8,
+              "current_position": 8.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "3": {
+              "segment_id": 3,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 28,
+              "current_position": 28.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "4": {
+              "segment_id": 4,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 43,
+              "current_position": 43.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "5": {
+              "segment_id": 5,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 60,
+              "current_position": 60.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "6": {
+              "segment_id": 6,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 103,
+              "current_position": 103.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "7": {
+              "segment_id": 7,
+              "color": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 120,
+              "current_position": 120.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "8": {
+              "segment_id": 8,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 148,
+              "current_position": 148.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "9": {
+              "segment_id": 9,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 168,
+              "current_position": 168.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "10": {
+              "segment_id": 10,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 180,
+              "current_position": 180.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "11": {
+              "segment_id": 11,
+              "color": [
+                5,
+                5,
+                3,
+                3
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 196,
+              "current_position": 196.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "12": {
+              "segment_id": 12,
+              "color": [
+                4,
+                4,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                27,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 89,
+              "current_position": 89.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "13": {
+              "segment_id": 13,
+              "color": [
+                5,
+                5,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                4,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 70,
+              "current_position": 70.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "effect_id": 1,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [
+                3,
+                3,
+                3,
+                3
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                205,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                0
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "2": {
+              "segment_id": 2,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.25,
+                0.25,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  1000,
+                  0,
+                  100
+                ],
+                [
+                  1000,
+                  100,
+                  100
+                ],
+                [
+                  1000,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "3": {
+              "segment_id": 3,
+              "color": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 12,
+              "current_position": 8.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "4": {
+              "segment_id": 4,
+              "color": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "transparency": [
+                0.25,
+                0.25,
+                0,
+                0
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 12,
+              "current_position": 8.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  1000,
+                  0,
+                  100
+                ],
+                [
+                  1000,
+                  100,
+                  100
+                ],
+                [
+                  1000,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "5": {
+              "segment_id": 5,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 28,
+              "current_position": 28.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "6": {
+              "segment_id": 6,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.25,
+                0.25,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 28,
+              "current_position": 28.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  1000,
+                  0,
+                  100
+                ],
+                [
+                  1000,
+                  100,
+                  100
+                ],
+                [
+                  1000,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "7": {
+              "segment_id": 7,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 43,
+              "current_position": 43.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "8": {
+              "segment_id": 8,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                0.25,
+                0.25,
+                0,
+                0
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 43,
+              "current_position": 43.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  1000,
+                  0,
+                  100
+                ],
+                [
+                  1000,
+                  100,
+                  100
+                ],
+                [
+                  1000,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "9": {
+              "segment_id": 9,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 60,
+              "current_position": 60.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "10": {
+              "segment_id": 10,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.25,
+                0.25,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": -20.0,
+              "move_range": [
+                -20,
+                102
+              ],
+              "initial_position": 60,
+              "current_position": 60.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  1000,
+                  0,
+                  100
+                ],
+                [
+                  1000,
+                  100,
+                  100
+                ],
+                [
+                  1000,
+                  100,
+                  0
+                ]
+              ]
+            },
+            "11": {
+              "segment_id": 11,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 103,
+              "current_position": 103.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "12": {
+              "segment_id": 12,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.25,
+                0.25,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 103,
+              "current_position": 103.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "13": {
+              "segment_id": 13,
+              "color": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 120,
+              "current_position": 120.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "14": {
+              "segment_id": 14,
+              "color": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "transparency": [
+                0.25,
+                0.25,
+                0,
+                0
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 120,
+              "current_position": 120.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "15": {
+              "segment_id": 15,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 148,
+              "current_position": 148.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "16": {
+              "segment_id": 16,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.25,
+                0.25,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 148,
+              "current_position": 148.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "17": {
+              "segment_id": 17,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 168,
+              "current_position": 168.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "18": {
+              "segment_id": 18,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 168,
+              "current_position": 168.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "19": {
+              "segment_id": 19,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 180,
+              "current_position": 180.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "20": {
+              "segment_id": 20,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                1,
+                1
+              ],
+              "length": [
+                16,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 180,
+              "current_position": 180.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "21": {
+              "segment_id": 21,
+              "color": [
+                3,
+                3,
+                3,
+                3
+              ],
+              "transparency": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 196,
+              "current_position": 196.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "22": {
+              "segment_id": 22,
+              "color": [
+                3,
+                3,
+                3,
+                3
+              ],
+              "transparency": [
+                0.5,
+                0.5,
+                0,
+                0
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                103,
+                224
+              ],
+              "initial_position": 196,
+              "current_position": 196.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "23": {
+              "segment_id": 23,
+              "color": [
+                4,
+                4,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                27,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 89,
+              "current_position": 89.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "effect_id": 2,
+          "segments": {
+            "0": {
+              "segment_id": 0,
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                205,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "1": {
+              "segment_id": 1,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                24,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 0,
+              "current_position": 0.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "2": {
+              "segment_id": 2,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                24,
+                0,
+                0
+              ],
+              "move_speed": 19.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 40,
+              "current_position": 40.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "3": {
+              "segment_id": 3,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                24,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 80,
+              "current_position": 80.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "4": {
+              "segment_id": 4,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                24,
+                0,
+                0
+              ],
+              "move_speed": 19.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 120,
+              "current_position": 120.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "5": {
+              "segment_id": 5,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                24,
+                0,
+                0
+              ],
+              "move_speed": 20.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 160,
+              "current_position": 160.0,
+              "is_edge_reflect": true,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "6": {
+              "segment_id": 6,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                12,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 20,
+              "current_position": 20.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "7": {
+              "segment_id": 7,
+              "color": [
+                2,
+                2,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 40,
+              "current_position": 40.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "8": {
+              "segment_id": 8,
+              "color": [
+                2,
+                2,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                12,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 70,
+              "current_position": 70.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "9": {
+              "segment_id": 9,
+              "color": [
+                2,
+                2,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                13,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 96,
+              "current_position": 96.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "10": {
+              "segment_id": 10,
+              "color": [
+                2,
+                2,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                12,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 124,
+              "current_position": 124.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "11": {
+              "segment_id": 11,
+              "color": [
+                2,
+                2,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                8,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 158,
+              "current_position": 158.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            },
+            "12": {
+              "segment_id": 12,
+              "color": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "transparency": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "length": [
+                12,
+                0,
+                0
+              ],
+              "move_speed": 0.0,
+              "move_range": [
+                0,
+                204
+              ],
+              "initial_position": 176,
+              "current_position": 176.0,
+              "is_edge_reflect": false,
+              "dimmer_time": [
+                [
+                  100,
+                  100,
+                  100
+                ]
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
