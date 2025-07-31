@@ -19,8 +19,8 @@ class ValidationError(Exception):
 class ValidationUtils:
     """Centralized validation utilities"""
     
-    PALETTE_INDEX_RANGE = (0, 5)           # 6 colors per palette (0-5)
-    TRANSPARENCY_RANGE = (0.0, 1.0)        # Standard transparency range
+    PALETTE_INDEX_RANGE = (0, 5)        
+    TRANSPARENCY_RANGE = (0.0, 1.0)       
     
     @staticmethod
     def get_brightness_range():
@@ -45,31 +45,28 @@ class ValidationUtils:
     def get_fps_range():
         """Get FPS range from settings"""
         if settings:
-            return (1, 240)  # Từ AnimationConfig validation
+            return (1, 240)  
         return (1, 240)
     
-    # Flexible validation - không bị cứng nhắc với config
     @staticmethod
     def validate_led_count_flexible(led_count: int, max_override: int = None) -> bool:
         """Validate LED count với khả năng override max từ scene JSON"""
         if not isinstance(led_count, int) or led_count < 1:
             return False
         
-        # Nếu có override từ scene, dùng giá trị đó
         if max_override is not None:
             return led_count <= max_override
         
-        # Nếu không, dùng giá trị từ settings
         default_range = ValidationUtils.get_default_led_count_range()
         return led_count <= default_range[1]
     
     BRIGHTNESS_RANGE = get_brightness_range.__func__()
     SPEED_RANGE = get_speed_range.__func__()
-    POSITION_RANGE = (-1000000, 1000000)   # Support for millions of LEDs
-    MAX_SEGMENT_ID = 99999                 # Increased segment limit
-    MAX_SCENE_ID = 9999                    # Reasonable scene limit
-    MAX_EFFECT_ID = 9999                   # Reasonable effect limit
-    MAX_PALETTE_ID = 99                    # Support up to 100 palettes per scene
+    POSITION_RANGE = (-1000000, 1000000)  
+    MAX_SEGMENT_ID = 99999                
+    MAX_SCENE_ID = 9999                   
+    MAX_EFFECT_ID = 9999               
+    MAX_PALETTE_ID = 99               
     
     @staticmethod
     def validate_int(value: Any, min_val: int = None, max_val: int = None, 
@@ -132,25 +129,25 @@ class ValidationUtils:
         """Validate length values (positive integers) - flexible upper limit"""
         if not ValidationUtils.validate_list(lengths, int, min_length=1):
             return False
-        # Chỉ kiểm tra positive, không giới hạn cứng upper bound
         return all(ValidationUtils.validate_int(l, 0) for l in lengths)
     
-    @staticmethod
     def validate_move_range(move_range: List[float], led_count_context: int = None) -> bool:
         """Validate move range với context từ scene hiện tại"""
         if not ValidationUtils.validate_list(move_range, (int, float), min_length=2, max_length=2):
             return False
         min_pos, max_pos = move_range[0], move_range[1]
+        
+        if min_pos == 0 and max_pos == 0:
+            return True
+            
         if min_pos > max_pos:
             return False
         if min_pos < 0 or max_pos < 0:
             return False
         
-        # Nếu có context từ scene, dùng giá trị đó
         if led_count_context is not None:
             return max_pos <= led_count_context
         
-        # Nếu không, dùng giá trị reasonable default
         default_range = ValidationUtils.get_default_led_count_range()
         return max_pos <= default_range[1]
     
@@ -165,7 +162,6 @@ class ValidationUtils:
             duration, start_brightness, end_brightness = transition
             if duration <= 0:
                 return False
-            # Brightness range is 0-100 in dimmer_time format (percentage)
             if not (ValidationUtils.validate_float(start_brightness, 0, 100) and
                    ValidationUtils.validate_float(end_brightness, 0, 100)):
                 return False
@@ -271,7 +267,6 @@ class DataSanitizer:
         if expected_type is None:
             return value
         
-        # Filter out invalid items
         sanitized = []
         for item in value:
             if isinstance(item, expected_type):
@@ -327,14 +322,19 @@ class DataSanitizer:
     
     @staticmethod
     def sanitize_move_range(move_range: List[float], led_count: int = 225) -> List[float]:
-        """Sanitize move range - sử dụng led_count thực tế từ scene"""
+        """Sanitize move range"""
         if not isinstance(move_range, list) or len(move_range) < 2:
             return [0.0, float(max(1, led_count - 1))]
         
-        min_pos = DataSanitizer.sanitize_float(move_range[0], 0.0, 0.0, float(led_count - 1))
-        max_pos = DataSanitizer.sanitize_float(move_range[1], float(led_count - 1), 0.0, float(led_count - 1))
+        min_pos = move_range[0]
+        max_pos = move_range[1]
         
-        # Ensure min <= max
+        if min_pos == 0 and max_pos == 0:
+            return [0.0, 0.0]
+        
+        min_pos = DataSanitizer.sanitize_float(min_pos, 0.0, 0.0, float(led_count - 1))
+        max_pos = DataSanitizer.sanitize_float(max_pos, float(led_count - 1), 0.0, float(led_count - 1))
+        
         if min_pos > max_pos:
             min_pos, max_pos = max_pos, min_pos
         
@@ -345,11 +345,9 @@ class DataSanitizer:
         """Sanitize LED count với flexible approach"""
         default_range = ValidationUtils.get_default_led_count_range()
         
-        # Nếu có override từ scene, dùng giá trị đó
         if max_override is not None:
             return DataSanitizer.sanitize_int(led_count, 225, default_range[0], max_override)
         
-        # Nếu không, dùng default range
         return DataSanitizer.sanitize_int(led_count, 225, default_range[0], default_range[1])
     
     @staticmethod

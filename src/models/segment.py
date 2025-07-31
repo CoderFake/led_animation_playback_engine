@@ -80,6 +80,7 @@ class Segment:
         """Reset timing when segment direction changes or position resets"""
         self.segment_start_time = time.time()
     
+
     def get_brightness_at_time(self, current_time: float) -> float:
         """
         Calculate brightness based on transition-based dimmer_time format
@@ -101,6 +102,10 @@ class Segment:
                 duration_ms = max(1, duration_ms)
                 
                 if elapsed_ms <= current_time_ms + duration_ms:
+                    if start_brightness == end_brightness:
+                        result = start_brightness / 100.0
+                        return max(0.0, min(1.0, result))
+                    
                     if duration_ms > 0:
                         progress = (elapsed_ms - current_time_ms) / duration_ms
                         progress = max(0.0, min(1.0, progress))
@@ -121,7 +126,7 @@ class Segment:
             
         except Exception as e:
             return 1.0
-        
+    
     def update_position(self, delta_time: float):
         """Update position with enhanced boundary enforcement"""
         if abs(self.move_speed) < 0.001:
@@ -214,7 +219,7 @@ class Segment:
             
         except Exception as e:
             return []
-    
+
     def render_to_led_array(self, palette, current_time: float, led_array) -> None:
         """Render segment to LED array with average blending for overlaps"""
         segment_colors = self.get_led_colors_with_timing(palette, current_time)
@@ -223,6 +228,24 @@ class Segment:
             return
         
         try:
+            if len(self.move_range) >= 2 and self.move_range[0] == 0 and self.move_range[1] == 0:
+                base_position = max(0, int(self.current_position))
+                
+                if base_position >= len(led_array):
+                    return
+                    
+                available_leds = len(led_array) - base_position
+                if len(segment_colors) > available_leds:
+                    segment_colors = segment_colors[:available_leds]
+                
+                for led_index in range(len(segment_colors)):
+                    final_led_index = base_position + led_index
+                    
+                    if 0 <= final_led_index < len(led_array):
+                        validated_color = ColorUtils.validate_rgb_color(segment_colors[led_index])
+                        ColorUtils.add_colors_to_led_array(led_array, final_led_index, validated_color)
+                return
+            
             max_allowed_position = self.move_range[1] - len(segment_colors) + 1 if len(self.move_range) >= 2 else len(led_array) - len(segment_colors)
             safe_position = min(self.current_position, max_allowed_position)
             
@@ -255,35 +278,22 @@ class Segment:
                     else:
                         return
             
-            for i, color in enumerate(segment_colors):
-                led_index = base_position + i
+            for led_index in range(len(segment_colors)):
+                final_led_index = base_position + led_index
                 
-                if led_index < 0 or led_index >= len(led_array):
-                    continue
+                if 0 <= final_led_index < len(led_array):
+                    validated_color = ColorUtils.validate_rgb_color(segment_colors[led_index])
                     
-                if not isinstance(color, (list, tuple)) or len(color) < 3:
-                    continue
-                
-                weight = 1.0
-                final_color = ColorUtils.validate_rgb_color(color)
-                
-                if len(segment_colors) > 1 and fractional_part > 0:
-                    is_first = (i == 0)
-                    is_last = (i == len(segment_colors) - 1)
+                    if fractional_part > 0.0 and led_index == 0:
+                        validated_color = ColorUtils.apply_brightness(validated_color, 1.0 - fractional_part)
+                    elif fractional_part > 0.0 and led_index == len(segment_colors) - 1:
+                        validated_color = ColorUtils.apply_brightness(validated_color, fractional_part)
                     
-                    if is_first:
-                        weight = fractional_part
-                        final_color = ColorUtils.apply_brightness(color, fractional_part)
-                    elif is_last:
-                        weight = 1.0 - fractional_part  
-                        final_color = ColorUtils.apply_brightness(color, 1.0 - fractional_part)
-                
-                ColorUtils.add_colors_to_led_array(led_array, led_index, final_color, weight)
-                        
+                    ColorUtils.add_colors_to_led_array(led_array, final_led_index, validated_color)
+                    
         except Exception as e:
-            import sys
-            print(f"Error in render_to_led_array: {e}", file=sys.stderr, flush=True)
-
+            pass
+        
     def get_total_led_count(self) -> int:
         """Get total number of LEDs this segment will generate"""
         try:
