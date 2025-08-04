@@ -132,8 +132,8 @@ class Segment:
         if abs(self.move_speed) < 0.001:
             return
         
-        old_position = int(self.current_position)
-        self.current_position += int(self.move_speed * delta_time)
+        new_position = self.current_position + (self.move_speed * delta_time)
+        self.current_position = int(new_position)
         
         total_segment_length = self.get_total_led_count()
         
@@ -221,7 +221,7 @@ class Segment:
             return []
 
     def render_to_led_array(self, palette, current_time: float, led_array) -> None:
-        """Render segment to LED array with average blending for overlaps"""
+        """Render segment to LED array with integer positioning (Phase 2 style)"""
         segment_colors = self.get_led_colors_with_timing(palette, current_time)
         
         if not segment_colors:
@@ -257,10 +257,8 @@ class Segment:
                     return
                 base_position = 0
                 segment_colors = segment_colors[skip_count:]
-                fractional_part = 0.0
             else:
                 base_position = max(0, int(safe_position))
-                fractional_part = max(0.0, min(1.0, safe_position - base_position))
             
             if base_position >= len(led_array):
                 return
@@ -283,17 +281,11 @@ class Segment:
                 
                 if 0 <= final_led_index < len(led_array):
                     validated_color = ColorUtils.validate_rgb_color(segment_colors[led_index])
-                    
-                    if fractional_part > 0.0 and led_index == 0:
-                        validated_color = ColorUtils.apply_brightness(validated_color, 1.0 - fractional_part)
-                    elif fractional_part > 0.0 and led_index == len(segment_colors) - 1:
-                        validated_color = ColorUtils.apply_brightness(validated_color, fractional_part)
-                    
                     ColorUtils.add_colors_to_led_array(led_array, final_led_index, validated_color)
                     
         except Exception as e:
             pass
-        
+
     def get_total_led_count(self) -> int:
         """Get total number of LEDs this segment will generate"""
         try:

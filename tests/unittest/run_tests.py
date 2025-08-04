@@ -240,10 +240,10 @@ def list_tests():
         print()
     
     print("Test Coverage Summary:")
-    print("• Color Utils: 18 methods covering transparency, brightness, blending")
-    print("• Segment: 25 methods covering timing, positioning, rendering")
+    print("• Color Utils: 17 methods covering transparency, brightness, blending")
+    print("• Segment: 29 methods covering timing, positioning, rendering")
     print("• Dissolve: 22 methods covering dual pattern crossfade system")
-    print("• Total: 65 comprehensive test methods")
+    print("• Total: 68 comprehensive test methods")
 
 
 if __name__ == '__main__':

@@ -166,24 +166,7 @@ class TestColorUtils(unittest.TestCase):
         # Test invalid master brightness values (should clamp)
         self.assertEqual(ColorUtils.apply_master_brightness(base_color, -10), [0, 0, 0])       # Clamped to 0
         self.assertEqual(ColorUtils.apply_master_brightness(base_color, 300), [255, 128, 64])  # Clamped to 255
-    
-    def test_apply_fade_factor(self):
-        """Test fade factor application"""
-        base_color = [255, 128, 64]
-        
-        # Test normal fade factors
-        self.assertEqual(ColorUtils.apply_fade_factor(base_color, 1.0), [255, 128, 64])
-        self.assertEqual(ColorUtils.apply_fade_factor(base_color, 0.5), [127, 64, 32])
-        
-        # Test small fade factor
-        result = ColorUtils.apply_fade_factor(base_color, 0.05)
-        expected = [int(255 * 0.05), int(128 * 0.05), int(64 * 0.05)]
-        self.assertEqual(result, expected)
-        
-        # Test invalid fade factors (should clamp)
-        self.assertEqual(ColorUtils.apply_fade_factor(base_color, -0.5), [0, 0, 0])      # Clamped to 0.0
-        self.assertEqual(ColorUtils.apply_fade_factor(base_color, 1.5), [255, 128, 64])  # Clamped to 1.0
-    
+
     def test_count_active_leds(self):
         """Test counting active LEDs"""
         led_colors = [

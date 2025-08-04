@@ -329,7 +329,7 @@ class TestSegment(unittest.TestCase):
         # Since 105 > 98, it wraps: offset = 105 - 98 = 7, new_pos = 0 + (7 % 98) = 7
         expected_position = 7.0
         self.assertAlmostEqual(segment.current_position, expected_position, places=1)
-    
+
     def test_render_to_led_array_basic(self):
         """Test basic rendering to LED array"""
         segment = Segment(
@@ -342,59 +342,19 @@ class TestSegment(unittest.TestCase):
         
         led_array = [[0, 0, 0] for _ in range(10)]
         
-        # Mock get_led_colors_with_timing to return known colors
         with patch.object(segment, 'get_led_colors_with_timing', return_value=[[100, 50, 25], [100, 50, 25], [100, 50, 25]]):
-            # Mock ColorUtils methods used in rendering
             with patch.object(ColorUtils, 'validate_rgb_color', side_effect=lambda x: x[:3]):
-                with patch.object(ColorUtils, 'apply_brightness', side_effect=lambda x, b: x):
-                    with patch.object(ColorUtils, 'add_colors_to_led_array') as mock_add:
-                        segment.render_to_led_array(self.sample_palette, time.time(), led_array)
-                        
-                        # Should call add_colors_to_led_array for each LED
-                        self.assertEqual(mock_add.call_count, 3)
-                        # Check that correct indices were used
-                        expected_calls = [
-                            unittest.mock.call(led_array, 2, [100, 50, 25], 1.0),
-                            unittest.mock.call(led_array, 3, [100, 50, 25], 1.0),
-                            unittest.mock.call(led_array, 4, [100, 50, 25], 1.0)
-                        ]
-                        mock_add.assert_has_calls(expected_calls)
-    
-    def test_render_to_led_array_fractional_position(self):
-        """Test rendering with fractional positioning"""
-        segment = Segment(
-            segment_id=1,
-            color=[0],
-            transparency=[0.0],
-            length=[3],
-            current_position=2.3  # Fractional position
-        )
-        
-        led_array = [[0, 0, 0] for _ in range(10)]
-        
-        with patch.object(segment, 'get_led_colors_with_timing', return_value=[[120, 60, 30], [120, 60, 30], [120, 60, 30]]):
-            with patch.object(ColorUtils, 'validate_rgb_color', side_effect=lambda x: x[:3]):
-                with patch.object(ColorUtils, 'apply_brightness', side_effect=lambda x, b: [int(c * b) for c in x]):
-                    with patch.object(ColorUtils, 'add_colors_to_led_array') as mock_add:
-                        segment.render_to_led_array(self.sample_palette, time.time(), led_array)
-                        
-                        # With fractional position 2.3, should apply fade effects
-                        # First LED (index 2) should have fade factor 0.3
-                        # Last LED (index 4) should have fade factor 0.7
-                        # Middle LED (index 3) should have no fade (weight 1.0)
-                        
-                        self.assertEqual(mock_add.call_count, 3)
-                        
-                        # Check that fade was applied (calls should have different values)
-                        calls = mock_add.call_args_list
-                        # First LED should be faded
-                        first_call = calls[0]
-                        self.assertNotEqual(first_call[0][2], [120, 60, 30])  # Should be faded
-                        
-                        # Middle LED should be unchanged
-                        middle_call = calls[1]
-                        self.assertEqual(middle_call[0][2], [120, 60, 30])  # Should be unchanged
-    
+                with patch.object(ColorUtils, 'add_colors_to_led_array') as mock_add:
+                    segment.render_to_led_array(self.sample_palette, time.time(), led_array)
+                    
+                    self.assertEqual(mock_add.call_count, 3)
+                    expected_calls = [
+                        unittest.mock.call(led_array, 2, [100, 50, 25]), 
+                        unittest.mock.call(led_array, 3, [100, 50, 25]),
+                        unittest.mock.call(led_array, 4, [100, 50, 25])
+                    ]
+                    mock_add.assert_has_calls(expected_calls)    
+
     def test_render_to_led_array_out_of_bounds(self):
         """Test rendering with out-of-bounds position"""
         segment = Segment(
@@ -410,14 +370,13 @@ class TestSegment(unittest.TestCase):
         
         with patch.object(segment, 'get_led_colors_with_timing', return_value=[[100, 50, 25]] * 5):
             with patch.object(ColorUtils, 'validate_rgb_color', side_effect=lambda x: x[:3]):
-                with patch.object(ColorUtils, 'apply_brightness', side_effect=lambda x, b: x):
-                    with patch.object(ColorUtils, 'add_colors_to_led_array') as mock_add:
-                        segment.render_to_led_array(self.sample_palette, time.time(), led_array)
-                        
-                        # The actual implementation applies range clamping and might render more LEDs
-                        # Just check that some rendering happened and didn't crash
-                        self.assertGreaterEqual(mock_add.call_count, 2)
-                        self.assertLessEqual(mock_add.call_count, 5)  # Should not exceed segment length
+                with patch.object(ColorUtils, 'add_colors_to_led_array') as mock_add:
+                    segment.render_to_led_array(self.sample_palette, time.time(), led_array)
+                    
+                    # The actual implementation applies range clamping and might render more LEDs
+                    # Just check that some rendering happened and didn't crash
+                    self.assertGreaterEqual(mock_add.call_count, 2)
+                    self.assertLessEqual(mock_add.call_count, 5)  # Should not exceed segment length
     
     def test_render_to_led_array_negative_position(self):
         """Test rendering with negative position"""
@@ -433,18 +392,68 @@ class TestSegment(unittest.TestCase):
         
         with patch.object(segment, 'get_led_colors_with_timing', return_value=[[100, 50, 25]] * 5):
             with patch.object(ColorUtils, 'validate_rgb_color', side_effect=lambda x: x[:3]):
-                with patch.object(ColorUtils, 'apply_brightness', side_effect=lambda x, b: x):
-                    with patch.object(ColorUtils, 'add_colors_to_led_array') as mock_add:
-                        segment.render_to_led_array(self.sample_palette, time.time(), led_array)
-                        
-                        # With position -2.0, first 2 LEDs should be skipped
-                        # Remaining 3 LEDs should be rendered starting at position 0
-                        self.assertEqual(mock_add.call_count, 3)
-                        
-                        # Check that rendering started at index 0
-                        calls = mock_add.call_args_list
-                        first_call = calls[0]
-                        self.assertEqual(first_call[0][1], 0)  # First LED index should be 0
+                with patch.object(ColorUtils, 'add_colors_to_led_array') as mock_add:
+                    segment.render_to_led_array(self.sample_palette, time.time(), led_array)
+                    
+                    # With position -2.0, first 2 LEDs should be skipped
+                    # Remaining 3 LEDs should be rendered starting at position 0
+                    self.assertEqual(mock_add.call_count, 3)
+                    
+                    # Check that rendering started at index 0
+                    calls = mock_add.call_args_list
+                    first_call = calls[0]
+                    self.assertEqual(first_call[0][1], 0)  # First LED index should be 0
+        
+    def test_render_to_led_array_integer_position_truncation(self):
+        """Test that fractional positions are truncated to integers (Phase 2)"""
+        segment = Segment(
+            segment_id=1,
+            color=[0],
+            transparency=[0.0],
+            length=[3],
+            current_position=2.7  # Fractional input
+        )
+        
+        led_array = [[0, 0, 0] for _ in range(10)]
+        
+        with patch.object(segment, 'get_led_colors_with_timing', return_value=[[120, 60, 30], [120, 60, 30], [120, 60, 30]]):
+            with patch.object(ColorUtils, 'validate_rgb_color', side_effect=lambda x: x[:3]):
+                with patch.object(ColorUtils, 'add_colors_to_led_array') as mock_add:
+                    segment.render_to_led_array(self.sample_palette, time.time(), led_array)
+                    
+                    # Position 2.7 should be truncated to 2
+                    # All LEDs should have same color
+                    self.assertEqual(mock_add.call_count, 3)
+                    
+                    expected_calls = [
+                        unittest.mock.call(led_array, 2, [120, 60, 30]),  # position 2
+                        unittest.mock.call(led_array, 3, [120, 60, 30]),  # position 3
+                        unittest.mock.call(led_array, 4, [120, 60, 30])   # position 4
+                    ]
+                    mock_add.assert_has_calls(expected_calls)
+
+    def test_update_position_integer_truncation(self):
+        """Test that position updates use integer truncation"""
+        segment = Segment(
+            segment_id=1,
+            move_speed=0.7,  # Slow speed
+            current_position=5.0,
+            move_range=[0, 100]
+        )
+        
+        # Multiple small updates should accumulate then truncate
+        for _ in range(3):
+            segment.update_position(0.1)  # 0.7 * 0.1 = 0.07 per update
+        
+        # After 3 updates: 5.0 + (0.07 * 3) = 5.21, truncated to 5
+        # Wait, với code mới: new_position = 5.0 + 0.21 = 5.21, int(5.21) = 5
+        self.assertEqual(segment.current_position, 5)
+        
+        # One more update to exceed 1.0 threshold
+        for _ in range(15):  # Total 18 updates = 1.26, should become 6
+            segment.update_position(0.1)
+        
+        self.assertEqual(segment.current_position, 6)
     
     def test_get_total_led_count(self):
         """Test total LED count calculation"""

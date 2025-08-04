@@ -109,16 +109,6 @@ class ColorUtils:
         return [int(c * brightness_factor) for c in color]
     
     @staticmethod
-    def apply_fade_factor(color, fade_factor: float) -> list:
-        """Apply fade factor for fractional positioning"""
-        if fade_factor < 0.0:
-            fade_factor = 0.0
-        elif fade_factor > 1.0:
-            fade_factor = 1.0
-        
-        return [int(c * fade_factor) for c in color]
-    
-    @staticmethod
     def calculate_transition_color(from_color, to_color, progress: float) -> list:
         """Calculate blended color for transitions"""
         if progress < 0.0:
@@ -135,20 +125,6 @@ class ColorUtils:
         ]
         
         return ColorUtils.validate_rgb_color(blended)
-    
-    @staticmethod
-    def calculate_fractional_fade_color(color, fractional_part: float, is_first: bool, is_last: bool) -> list:
-        """Calculate color with fractional positioning fade effect"""
-        if len([True for x in [is_first, is_last] if x]) > 1:
-            fade_factor = 1.0
-        elif is_first:
-            fade_factor = max(0.1, fractional_part)
-        elif is_last:
-            fade_factor = max(0.1, 1.0 - fractional_part)
-        else:
-            fade_factor = 1.0
-        
-        return ColorUtils.apply_fade_factor(color, fade_factor)
     
     @staticmethod
     def count_active_leds(led_colors) -> int:
