@@ -77,10 +77,10 @@ class TestRunner:
         
         # Print test class breakdown
         print("\nTest Class Breakdown:")
-        print(f"- TestColorUtils: 18 test methods (color processing, blending)")
-        print(f"- TestSegment: 25 test methods (animation logic, positioning)")
+        print(f"- TestColorUtils: 17 test methods (color processing, blending)")
+        print(f"- TestSegment: 29 test methods (animation logic, positioning)")
         print(f"- TestDissolveTransition: 22 test methods (dual pattern crossfade)")
-        print(f"- Total: 65 comprehensive test methods")
+        print(f"- Total: 68 comprehensive test methods")
         
         if result.wasSuccessful():
             print("\nALL TESTS PASSED!")

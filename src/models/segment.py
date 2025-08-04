@@ -52,6 +52,7 @@ class Segment:
             self.length.append(1)
         
         self.segment_start_time = time.time()
+        self._fractional_accumulator = 0.0
         
         if not self.dimmer_time or not isinstance(self.dimmer_time[0], list):
             self.dimmer_time = [[1000, 0, 100]]
@@ -99,7 +100,7 @@ class Segment:
             
             current_time_ms = 0
             for duration_ms, start_brightness, end_brightness in self.dimmer_time:
-                duration_ms = max(1, duration_ms)
+                duration_ms = max(1, int(duration_ms))
                 
                 if elapsed_ms <= current_time_ms + duration_ms:
                     if start_brightness == end_brightness:
@@ -132,8 +133,15 @@ class Segment:
         if abs(self.move_speed) < 0.001:
             return
         
-        new_position = self.current_position + (self.move_speed * delta_time)
-        self.current_position = int(new_position)
+        if not hasattr(self, '_fractional_accumulator'):
+            self._fractional_accumulator = 0.0
+        
+        self._fractional_accumulator += self.move_speed * delta_time
+        
+        if abs(self._fractional_accumulator) >= 1.0:
+            position_change = int(self._fractional_accumulator)
+            self.current_position += position_change
+            self._fractional_accumulator -= position_change
         
         total_segment_length = self.get_total_led_count()
         
@@ -161,6 +169,7 @@ class Segment:
                 
                 if direction_changed:
                     self.reset_animation_timing()
+                    self._fractional_accumulator = 0.0 
             else:
                 if self.current_position < min_pos:
                     range_size = effective_max_pos - min_pos
@@ -221,15 +230,17 @@ class Segment:
             return []
 
     def render_to_led_array(self, palette, current_time: float, led_array) -> None:
-        """Render segment to LED array with integer positioning (Phase 2 style)"""
+        """Render segment to LED array with integer positioning"""
         segment_colors = self.get_led_colors_with_timing(palette, current_time)
         
         if not segment_colors:
             return
         
         try:
+            base_position = int(self.current_position)
+            
             if len(self.move_range) >= 2 and self.move_range[0] == 0 and self.move_range[1] == 0:
-                base_position = int(max(0, int(self.current_position)))
+                base_position = max(0, base_position)
                 
                 if base_position >= len(led_array):
                     return
@@ -247,37 +258,18 @@ class Segment:
                 return
             
             max_allowed_position = self.move_range[1] - len(segment_colors) + 1 if len(self.move_range) >= 2 else len(led_array) - len(segment_colors)
-            safe_position = int(min(self.current_position, max_allowed_position))
+            safe_position = min(base_position, max_allowed_position)
             
             if safe_position < 0:
                 if safe_position < -len(segment_colors):
                     return
-                skip_count = int(abs(safe_position))
-                if skip_count >= len(segment_colors):
-                    return
-                base_position = 0
-                segment_colors = segment_colors[skip_count:]
-            else:
-                base_position = max(0, int(safe_position))
-            
-            if base_position >= len(led_array):
-                return
                 
-            available_leds = len(led_array) - base_position
-            if len(segment_colors) > available_leds:
-                segment_colors = segment_colors[:available_leds]
-            
-            if len(self.move_range) >= 2:
-                max_led_index = min(len(led_array) - 1, self.move_range[1])
-                if base_position + len(segment_colors) > max_led_index + 1:
-                    allowed_length = max_led_index + 1 - base_position
-                    if allowed_length > 0:
-                        segment_colors = segment_colors[:allowed_length]
-                    else:
-                        return
+                skip_count = abs(safe_position)
+                segment_colors = segment_colors[skip_count:]
+                safe_position = 0
             
             for led_index in range(len(segment_colors)):
-                final_led_index = base_position + led_index
+                final_led_index = safe_position + led_index
                 
                 if 0 <= final_led_index < len(led_array):
                     validated_color = ColorUtils.validate_rgb_color(segment_colors[led_index])
