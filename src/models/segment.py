@@ -81,7 +81,6 @@ class Segment:
         """Reset timing when segment direction changes or position resets"""
         self.segment_start_time = time.time()
     
-
     def get_brightness_at_time(self, current_time: float) -> float:
         """
         Calculate brightness based on transition-based dimmer_time format
@@ -96,22 +95,18 @@ class Segment:
             if total_cycle_ms <= 0:
                 return 1.0
             
-            elapsed_ms = elapsed_ms % total_cycle_ms
+            cycle_elapsed_ms = elapsed_ms % total_cycle_ms
+            
+            if cycle_elapsed_ms == 0 and elapsed_ms > 0:
+                cycle_elapsed_ms = total_cycle_ms
             
             current_time_ms = 0
             for duration_ms, start_brightness, end_brightness in self.dimmer_time:
                 duration_ms = max(1, int(duration_ms))
                 
-                if elapsed_ms <= current_time_ms + duration_ms:
-                    if start_brightness == end_brightness:
-                        result = start_brightness / 100.0
-                        return max(0.0, min(1.0, result))
-                    
-                    if duration_ms > 0:
-                        progress = (elapsed_ms - current_time_ms) / duration_ms
-                        progress = max(0.0, min(1.0, progress))
-                    else:
-                        progress = 0.0
+                if cycle_elapsed_ms <= current_time_ms + duration_ms:
+                    progress = (cycle_elapsed_ms - current_time_ms) / duration_ms
+                    progress = max(0.0, min(1.0, progress))
                     
                     brightness = start_brightness + (end_brightness - start_brightness) * progress
                     result = brightness / 100.0
