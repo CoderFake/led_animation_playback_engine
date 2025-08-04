@@ -112,8 +112,8 @@ def convert_old_format_to_multiple_scenes(old_data: Dict[str, Any]) -> Dict[str,
                 "length": seg_data.get("length", [1]),
                 "move_speed": float(seg_data.get("move_speed", 0)),
                 "move_range": seg_data.get("move_range", [0, 224]),
-                "initial_position": seg_data.get("initial_position", 0),
-                "current_position": float(seg_data.get("current_position", seg_data.get("initial_position", 0))),
+                "initial_position": int(seg_data.get("initial_position", 0)),
+                "current_position": int(seg_data.get("current_position", seg_data.get("initial_position", 0))),
                 "is_edge_reflect": seg_data.get("is_edge_reflect", True)
             }
             

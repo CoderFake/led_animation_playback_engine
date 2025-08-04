@@ -26,15 +26,15 @@ class Segment:
     move_speed: float = 0.0
     move_range: List[int] = field(default_factory=lambda: [0, 224])
     initial_position: int = 0
-    current_position: float = 0.0
+    current_position: int = 0
     is_edge_reflect: bool = True
     dimmer_time: List[List[int]] = field(default_factory=lambda: [[1000, 0, 100]])
     segment_start_time: float = 0.0
     
     def __post_init__(self):
         """Initialize segment timing and validate data"""
-        if self.current_position == 0.0:
-            self.current_position = float(self.initial_position)
+        if self.current_position == 0:
+            self.current_position = int(self.initial_position)
         
         if not self.color:
             self.color = [0]
@@ -132,8 +132,8 @@ class Segment:
         if abs(self.move_speed) < 0.001:
             return
         
-        old_position = self.current_position
-        self.current_position += self.move_speed * delta_time
+        old_position = int(self.current_position)
+        self.current_position += int(self.move_speed * delta_time)
         
         total_segment_length = self.get_total_led_count()
         
@@ -166,12 +166,12 @@ class Segment:
                     range_size = effective_max_pos - min_pos
                     if range_size > 0:
                         offset = min_pos - self.current_position
-                        self.current_position = effective_max_pos - (offset % range_size)
+                        self.current_position = int(effective_max_pos - (offset % range_size))
                 elif self.current_position > effective_max_pos:
                     range_size = effective_max_pos - min_pos
                     if range_size > 0:
                         offset = self.current_position - effective_max_pos
-                        self.current_position = min_pos + (offset % range_size)
+                        self.current_position = int(min_pos + (offset % range_size))
 
     def get_led_colors_with_timing(self, palette: List[List[int]], current_time: float) -> List[List[int]]:
         """Get LED colors with improved time-based brightness and palette handling"""
@@ -229,7 +229,7 @@ class Segment:
         
         try:
             if len(self.move_range) >= 2 and self.move_range[0] == 0 and self.move_range[1] == 0:
-                base_position = max(0, int(self.current_position))
+                base_position = int(max(0, int(self.current_position)))
                 
                 if base_position >= len(led_array):
                     return
@@ -247,7 +247,7 @@ class Segment:
                 return
             
             max_allowed_position = self.move_range[1] - len(segment_colors) + 1 if len(self.move_range) >= 2 else len(led_array) - len(segment_colors)
-            safe_position = min(self.current_position, max_allowed_position)
+            safe_position = int(min(self.current_position, max_allowed_position))
             
             if safe_position < 0:
                 if safe_position < -len(segment_colors):
@@ -336,8 +336,8 @@ class Segment:
                 length=data.get("length", [1]),
                 move_speed=data.get("move_speed", 0.0),
                 move_range=data.get("move_range", [0, 224]),
-                initial_position=data.get("initial_position", 0),
-                current_position=data.get("current_position", 0.0),
+                initial_position= int(data.get("initial_position", 0)),
+                current_position= int(data.get("current_position", 0)),
                 is_edge_reflect=data.get("is_edge_reflect", True),
                 dimmer_time=dimmer_time
             )
@@ -370,7 +370,7 @@ class Segment:
     
     def reset_position(self):
         """Reset the position to the initial position and restart timing"""
-        self.current_position = float(self.initial_position)
+        self.current_position = int(self.initial_position)
         self.reset_animation_timing()
     
     def is_active(self) -> bool:
@@ -409,7 +409,7 @@ class Segment:
                 log_validation_error(f"Invalid move_range: {self.move_range}", "move_range")
                 return False
             
-            if not ValidationUtils.validate_float(self.current_position, *ValidationUtils.POSITION_RANGE):
+            if not ValidationUtils.validate_int(self.current_position, *ValidationUtils.POSITION_RANGE):
                 log_validation_error(f"Invalid current_position: {self.current_position}", "current_position")
                 return False
             
@@ -442,7 +442,7 @@ class Segment:
             self.length = DataSanitizer.sanitize_length_values(self.length, len(self.color))
             self.move_speed = DataSanitizer.sanitize_float(self.move_speed, 0.0, *ValidationUtils.get_speed_range())
             self.move_range = DataSanitizer.sanitize_move_range(self.move_range, led_count)
-            self.current_position = DataSanitizer.sanitize_float(self.current_position, 0.0, *ValidationUtils.POSITION_RANGE)
+            self.current_position = DataSanitizer.sanitize_int(self.current_position, 0, *ValidationUtils.POSITION_RANGE)
             if not self.dimmer_time or not isinstance(self.dimmer_time, list):
                 self.dimmer_time = [[1000, 0, 100]]
             else:
@@ -464,5 +464,5 @@ class Segment:
             self.length = [1]
             self.move_speed = 0.0
             self.move_range = [0.0, float(max(1, led_count - 1))]
-            self.current_position = 0.0
+            self.current_position = 0
             self.dimmer_time = [[1000, 0, 100]]
