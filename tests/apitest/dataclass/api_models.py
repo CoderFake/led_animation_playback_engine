@@ -35,10 +35,6 @@ class SetDissolvePatternRequest(BaseModel):
     """Set dissolve pattern request"""
     pattern_id: int
 
-class DissolveTimeRequest(BaseModel):
-    """Set dissolve time request"""
-    time_ms: int
-
 class SpeedPercentRequest(BaseModel):
     """Set speed percent request - expanded range 0-1023%"""
     percent: int
@@ -46,6 +42,18 @@ class SpeedPercentRequest(BaseModel):
 class MasterBrightnessRequest(BaseModel):
     """Set master brightness request"""
     brightness: int
+
+class ChangePatternRequest(BaseModel):
+    """Change pattern request - Execute cached changes"""
+    pass
+
+class PauseRequest(BaseModel):
+    """Pause animation request - no parameters needed"""
+    pass
+
+class ResumeRequest(BaseModel):
+    """Resume animation request - no parameters needed"""
+    pass
 
 class OSCApiResponse(BaseModel):
     """OSC API response"""

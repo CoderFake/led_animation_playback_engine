@@ -66,7 +66,6 @@ class DissolvePatternManager:
                     if valid_transitions:
                         self.patterns[pattern_id] = valid_transitions
                         patterns_loaded += 1
-                        logger.debug(f"Loaded pattern {pattern_id} with {len(valid_transitions)} transitions")
                     else:
                         logger.warning(f"Pattern {pattern_id} has no valid transitions")
                         
@@ -127,9 +126,7 @@ class DissolvePatternManager:
             List of transitions or None if pattern not found
         """
         pattern = self.patterns.get(pattern_id)
-        if pattern:
-            logger.debug(f"Retrieved pattern {pattern_id} with {len(pattern)} transitions")
-        else:
+        if not pattern:
             logger.warning(f"Pattern {pattern_id} not found")
         return pattern
     

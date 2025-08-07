@@ -3,9 +3,9 @@ LED Control Endpoints
 """
 from fastapi import APIRouter, HTTPException, Request
 from dataclass.api_models import (
-    ChangeEffectRequest, DissolveTimeRequest, 
-    SpeedPercentRequest, MasterBrightnessRequest, OSCApiResponse,
-    LoadDissolveJsonRequest, SetDissolvePatternRequest
+    ChangeEffectRequest, SpeedPercentRequest, MasterBrightnessRequest, OSCApiResponse,
+    LoadDissolveJsonRequest, SetDissolvePatternRequest,
+    ChangePatternRequest, PauseRequest, ResumeRequest
 )
 from dataclass.osc_models import OSCRequest, OSCMessageType, OSCDataType
 from services.osc_client import OSCClientContext, UDPOSCClient
@@ -108,34 +108,6 @@ async def set_dissolve_pattern(request: SetDissolvePatternRequest, http_request:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/set_dissolve_time", response_model=OSCApiResponse)
-async def set_dissolve_time(request: DissolveTimeRequest, http_request: Request):
-    try:
-        osc_request = OSCRequest()
-        osc_request.set_address("/set_dissolve_time")
-        osc_request.set_message_type(OSCMessageType.LED_CONTROL)
-        osc_request.add_parameter("time_ms", request.time_ms, OSCDataType.INT, "Dissolve time in ms")
-        
-        response = await osc_client.send_message(osc_request)
-        
-        # Get localized message
-        lang = get_request_language(http_request)
-        log_message = language_service.get_response_message(
-            "dissolve_time_set", 
-            language=lang,
-            time_ms=request.time_ms
-        )
-        
-        return OSCApiResponse(
-            success=response.is_success(),
-            message=log_message,
-            data={
-                "time_ms": request.time_ms,
-                "osc_response": response.__dict__
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/set_speed_percent", response_model=OSCApiResponse)
 async def set_speed_percent(request: SpeedPercentRequest, http_request: Request):
@@ -189,6 +161,93 @@ async def master_brightness(request: MasterBrightnessRequest, http_request: Requ
             message=log_message,
             data={
                 "brightness": request.brightness,
+                "osc_response": response.__dict__
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/change_pattern", response_model=OSCApiResponse)
+async def change_pattern(request: ChangePatternRequest, http_request: Request):
+    """
+    Execute cached pattern changes with dissolve transition.
+    """
+    try:
+        osc_request = OSCRequest()
+        osc_request.set_address("/change_pattern")
+        osc_request.set_message_type(OSCMessageType.LED_CONTROL)
+        
+        response = await osc_client.send_message(osc_request)
+        lang = get_request_language(http_request)
+        log_message = language_service.get_response_message(
+            "pattern_changed", 
+            language=lang
+        )
+        
+        return OSCApiResponse(
+            success=response.is_success(),
+            message=log_message,
+            data={
+                "osc_response": response.__dict__
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/pause", response_model=OSCApiResponse)
+async def pause_animation(request: PauseRequest, http_request: Request):
+    """
+    Pause the current animation.
+    """
+    try:
+        osc_request = OSCRequest()
+        osc_request.set_address("/pause")
+        osc_request.set_message_type(OSCMessageType.LED_CONTROL)
+        
+        response = await osc_client.send_message(osc_request)
+        
+        # Get localized message
+        lang = get_request_language(http_request)
+        log_message = language_service.get_response_message(
+            "animation_paused", 
+            language=lang
+        )
+        
+        return OSCApiResponse(
+            success=response.is_success(),
+            message=log_message,
+            data={
+                "action": "pause",
+                "osc_response": response.__dict__
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/resume", response_model=OSCApiResponse)
+async def resume_animation(request: ResumeRequest, http_request: Request):
+    """
+    Resume the paused animation.
+    """
+    try:
+        osc_request = OSCRequest()
+        osc_request.set_address("/resume")
+        osc_request.set_message_type(OSCMessageType.LED_CONTROL)
+        
+        response = await osc_client.send_message(osc_request)
+        
+        # Get localized message
+        lang = get_request_language(http_request)
+        log_message = language_service.get_response_message(
+            "animation_resumed", 
+            language=lang
+        )
+        
+        return OSCApiResponse(
+            success=response.is_success(),
+            message=log_message,
+            data={
+                "action": "resume",
                 "osc_response": response.__dict__
             }
         )

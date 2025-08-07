@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from config.settings import EngineSettings
 from src.utils.logger import get_logger, OSCLogger
-from src.utils.logging import OSCLogger as NewOSCLogger, LoggingUtils, PerformanceTracker
+from src.utils.logging import OSCLogger as NewOSCLogger, PerformanceTracker
 from src.utils.validation import ValidationUtils
 
 logger = get_logger(__name__)
@@ -101,6 +101,7 @@ class OSCHandler:
             with PerformanceTracker("OSC", f"handler_{osc_address}") as tracker:
                 handler(osc_address, *args)
                 tracker.add_data("args_count", len(args))
+                NewOSCLogger.log_processed(osc_address, "success")
                 
         except Exception as e:
             with self._lock:
@@ -119,48 +120,30 @@ class OSCHandler:
                 self.message_count += 1
                 self.last_message_time = time.time()
             
-            logger.info(f"OSC Palette Handler received: {address} with {len(args)} parameters: {args}")
-            osc_logger.log_message(address, args)
+            NewOSCLogger.log_received(address, list(args))
             
-            if not address.startswith('/palette/'):
-                logger.error(f"Invalid palette address: {address} (must start with /palette/)")
-                return
-            
-            pattern_old = r"/palette/([A-E])/([0-5])"
-            pattern_new = r"/palette/([0-4])/([0-5])"
-            
-            match_old = re.match(pattern_old, address)
-            match_new = re.match(pattern_new, address)
-            
-            palette_id = None
-            color_id = None
-            
-            if match_old:
-                palette_letter = match_old.group(1)
-                palette_id = ord(palette_letter.upper()) - ord('A')  
-                color_id = int(match_old.group(2))
-                logger.info(f"Converted old palette format: {palette_letter} -> {palette_id}")
-                osc_logger.log_message(f"Converted palette {palette_letter} to {palette_id}", ())
-            elif match_new:
-                palette_id = int(match_new.group(1))
-                color_id = int(match_new.group(2))
-                logger.info(f"Using new palette format: palette_id={palette_id}, color_id={color_id}")
-            else:
+            match = re.match(r"/palette/([A-E0-4])/([0-5])", address)
+            if not match:
                 logger.error(f"Invalid palette address format: {address}")
-                logger.error("Valid format: /palette/{A-E}/{0-5} or /palette/{0-4}/{0-5}")
-                osc_logger.log_error(f"Invalid palette address format: {address}")
                 return
+            
+            palette_part, color_id_str = match.groups()
+            
+            if palette_part in ['A', 'B', 'C', 'D', 'E']:
+                palette_id = ord(palette_part) - ord('A')
+            else:
+                palette_id = int(palette_part) 
+            
+            color_id = int(color_id_str)
             
             if len(args) < 3:
-                logger.error(f"Missing RGB values for {address}: {args} (requires 3 values)")
-                osc_logger.log_error(f"Insufficient RGB values for {address}: {args}")
+                logger.error(f"Palette message requires at least 3 RGB arguments, got {len(args)}")
                 return
             
             try:
-                rgb = [int(args[0]), int(args[1]), int(args[2])]
-                logger.info(f"Received RGB values: R={rgb[0]}, G={rgb[1]}, B={rgb[2]}")
-                
+                rgb = [int(args[i]) for i in range(3)]
                 original_rgb = rgb.copy()
+                
                 for i in range(3):
                     if rgb[i] < 0:
                         logger.warning(f"RGB[{i}] = {rgb[i]} < 0, adjusted to 0")
@@ -206,7 +189,6 @@ class OSCHandler:
         """
         try:
             start_time = time.time()
-            logger.debug(f"Processing palette: {address} palette_id={palette_id}, color_id={color_id}, RGB={rgb}")
             
             handler(address, palette_id, color_id, rgb)
             
@@ -223,8 +205,6 @@ class OSCHandler:
         """
         logger.warning(f"Unsupported OSC message: {address} with args: {args}")
         logger.info(f"Supported addresses: {list(self.message_handlers.keys())}")
-        
-        # Log for debugging
         osc_logger.log_message(f"UNKNOWN: {address}", args)
     
     async def start(self):
@@ -271,31 +251,28 @@ class OSCHandler:
         if self.executor:
             self.executor.shutdown(wait=False)
             logger.info("OSC Executor stopped.")
-        
-        stats = self.get_stats()
-        logger.info(f"Final OSC Stats: {stats['message_count']} messages, {stats['error_count']} errors")
-    
-    def get_registered_addresses(self) -> List[str]:
-        """
-        Get the list of registered addresses
-        """
-        addresses = list(self.message_handlers.keys())
-        addresses.append("/palette/*/*")
-        logger.debug(f"Returning {len(addresses)} registered addresses")
-        return addresses
     
     def get_stats(self) -> Dict[str, Any]:
         """
-        Get OSC statistics
+        Get OSC handler statistics
         """
         with self._lock:
-            stats = {
+            return {
+                "running": self.server is not None,
                 "message_count": self.message_count,
                 "error_count": self.error_count,
+                "error_rate": self.error_count / max(1, self.message_count),
                 "last_message_time": self.last_message_time,
-                "registered_addresses": len(self.message_handlers),
-                "executor_active": self.executor and not self.executor._shutdown,
-                "server_running": self.server is not None,
-                "error_rate": (self.error_count / max(1, self.message_count)) * 100
+                "handlers_count": len(self.message_handlers),
+                "has_palette_handler": self.palette_handler is not None,
+                "server_address": f"{EngineSettings.OSC.input_host}:{EngineSettings.OSC.input_port}" if self.server else None
             }
-            return stats
+    
+    def reset_stats(self):
+        """
+        Reset message statistics
+        """
+        with self._lock:
+            self.message_count = 0
+            self.error_count = 0
+        logger.info("OSC handler statistics reset")

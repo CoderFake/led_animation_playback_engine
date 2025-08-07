@@ -38,10 +38,6 @@
           "summary": "Thiết lập Dissolve Pattern",
           "description": "Thiết lập dissolve pattern theo ID"
         },
-        "set_dissolve_time": {
-          "summary": "Thiết lập Thời gian Dissolve",
-          "description": "Thiết lập thời gian dissolve theo milliseconds"
-        },
         "set_speed_percent": {
           "summary": "Thiết lập Tỷ lệ Tốc độ",
           "description": "Thiết lập tỷ lệ tốc độ animation (0-200%)"
@@ -49,6 +45,18 @@
         "master_brightness": {
           "summary": "Thiết lập Độ sáng Tổng",
           "description": "Thiết lập mức độ sáng tổng thể (0-255)"
+        },
+        "change_pattern": {
+          "summary": "Chuyển Pattern",
+          "description": "Chuyển đổi pattern khác theo Pattern ID"
+        },
+        "pause": {
+          "summary": "Tạm dừng Animation",
+          "description": "Tạm dừng animation hiện tại"
+        },
+        "resume": {
+          "summary": "Tiếp tục Animation",
+          "description": "Tiếp tục animation đã tạm dừng"
         }
       }
     },
@@ -90,10 +98,6 @@
           "summary": "Set Dissolve Pattern",
           "description": "Set dissolve pattern by ID"
         },
-        "set_dissolve_time": {
-          "summary": "Set Dissolve Time",
-          "description": "Set dissolve transition time in milliseconds"
-        },
         "set_speed_percent": {
           "summary": "Set Speed Percent",
           "description": "Set animation speed percentage (0-200%)"
@@ -101,6 +105,18 @@
         "master_brightness": {
           "summary": "Set Master Brightness",
           "description": "Set overall brightness level (0-255)"
+        },
+        "change_pattern": {
+          "summary": "Change Pattern",
+          "description": "Switch to different pattern by Pattern ID"
+        },
+        "pause": {
+          "summary": "Pause Animation",
+          "description": "Pause current animation"
+        },
+        "resume": {
+          "summary": "Resume Animation",
+          "description": "Resume paused animation"
         }
       }
     },
@@ -142,10 +158,6 @@
           "summary": "ディゾルブパターン設定",
           "description": "IDでディゾルブパターンを設定"
         },
-        "set_dissolve_time": {
-          "summary": "ディゾルブ時間設定",
-          "description": "ディゾルブ遷移時間をミリ秒で設定"
-        },
         "set_speed_percent": {
           "summary": "速度パーセント設定",
           "description": "アニメーション速度パーセントを設定 (0-200%)"
@@ -153,6 +165,18 @@
         "master_brightness": {
           "summary": "マスター輝度設定",
           "description": "全体輝度レベルを設定 (0-255)"
+        },
+        "change_pattern": {
+          "summary": "パターン変更",
+          "description": "パターンIDで異なるパターンに切り替える"
+        },
+        "pause": {
+          "summary": "アニメーション一時停止",
+          "description": "現在のアニメーションを一時停止"
+        },
+        "resume": {
+          "summary": "アニメーション再開",
+          "description": "一時停止したアニメーションを再開"
         }
       }
     }
@@ -209,9 +233,11 @@
       "effect_changed": "Effect đã thay đổi thành: {effect_id}",
       "dissolve_pattern_loaded": "Đã tải dissolve pattern từ: {file_path}",
       "dissolve_pattern_set": "Đã đặt dissolve pattern thành: {pattern_id}",
-      "dissolve_time_set": "Đã đặt dissolve time thành: {time_ms}ms",
       "speed_percent_set": "Đã đặt tốc độ animation thành: {percent}% (phạm vi: 0-1023%)",
-      "master_brightness_set": "Đã đặt master brightness thành: {brightness} (phạm vi: 0-255)"
+      "master_brightness_set": "Đã đặt master brightness thành: {brightness} (phạm vi: 0-255)",
+      "pattern_changed": "Đã thực thi thay đổi pattern",
+      "animation_paused": "Animation đã được tạm dừng",
+      "animation_resumed": "Animation đã được tiếp tục"
     },
     "en": {
       "scene_loaded": "Scene loaded from: {file_path}",
@@ -221,9 +247,11 @@
       "effect_changed": "Effect changed to: {effect_id}",
       "dissolve_pattern_loaded": "Dissolve pattern loaded from: {file_path}",
       "dissolve_pattern_set": "Dissolve pattern set to: {pattern_id}",
-      "dissolve_time_set": "Dissolve time set to: {time_ms}ms",
       "speed_percent_set": "Animation speed set to: {percent}% (range: 0-1023%)",
-      "master_brightness_set": "Master brightness set to: {brightness} (range: 0-255)"
+      "master_brightness_set": "Master brightness set to: {brightness} (range: 0-255)",
+      "pattern_changed": "Pattern changes executed",
+      "animation_paused": "Animation has been paused",
+      "animation_resumed": "Animation has been resumed"
     },
     "ja": {
       "scene_loaded": "シーンを読み込みました: {file_path}",
@@ -233,9 +261,11 @@
       "effect_changed": "エフェクトを変更しました: {effect_id}",
       "dissolve_pattern_loaded": "ディゾルブパターンを読み込みました: {file_path}",
       "dissolve_pattern_set": "ディゾルブパターンを設定しました: {pattern_id}",
-      "dissolve_time_set": "ディゾルブ時間を設定しました: {time_ms}ms",
       "speed_percent_set": "アニメーション速度を設定しました: {percent}% (範囲: 0-1023%)",
-      "master_brightness_set": "マスター輝度を設定しました: {brightness} (範囲: 0-255)"
+      "master_brightness_set": "マスター輝度を設定しました: {brightness} (範囲: 0-255)",
+      "pattern_changed": "パターンの変更を実行しました",
+      "animation_paused": "アニメーションを一時停止しました",
+      "animation_resumed": "アニメーションを再開しました"
     }
   },
   "error_messages": {

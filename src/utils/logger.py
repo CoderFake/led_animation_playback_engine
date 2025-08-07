@@ -139,7 +139,6 @@ class OSCLogger:
             if len(args) > 3:
                 args_str += f" ... ({len(args)} args)"
             
-            self.logger.debug(f"OSC batch: {self.message_count} messages | Latest: {address} {args_str}")
         elif address.startswith('/palette/') or 'load' in address or 'change' in address:
             args_str = ' '.join(str(arg) for arg in args) if args else ''
             self.logger.info(f"OSC {address} {args_str}")

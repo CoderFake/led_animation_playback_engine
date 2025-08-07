@@ -228,8 +228,6 @@ class LEDOutput:
                     self.last_send_time = current_time
                     self._update_fps_tracking(current_time)
                 
-                logger.debug(f"LED data sent to {successful_sends}/{len(self.destinations)} destinations ({len(led_colors)} LEDs)")
-                
         except Exception as e:
             self.error_count += 1
             logger.error(f"Error in send_led_data: {e}")

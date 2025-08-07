@@ -13,8 +13,6 @@ from ..models.scene import Scene
 from ..models.common import DissolveTransition, DualPatternCalculator, PatternState
 from ..utils.logging import LoggingUtils
 from ..utils.dissolve_pattern import DissolvePatternManager
-from config.settings import EngineSettings
-
 
 logger = LoggingUtils._get_logger("SceneManager")
 
@@ -43,11 +41,18 @@ class SceneManager:
         
         self.original_scene_speeds: Dict[int, Dict[str, Dict[str, float]]] = {}
         
+        self.cached_scene_id: Optional[int] = None
+        self.cached_effect_id: Optional[int] = None
+        self.cached_palette_id: Optional[int] = None
+        self.has_pending_changes = False
+        self.is_initial = True
+        
         self.stats = {
             'scenes_loaded': 0,
             'scene_switches': 0,
             'effect_changes': 0,
             'palette_changes': 0,
+            'pattern_changes': 0, 
             'dissolve_transitions_completed': 0,
             'errors': 0
         }
@@ -68,6 +73,274 @@ class SceneManager:
                 callback()
             except Exception as e:
                 logger.error(f"Error in change callback: {e}")
+    
+    # ==================== Cache Management ====================
+    
+    def _cache_current_state(self):
+        """Cache current state before changes"""
+        with self._lock:
+            if self.current_scene:
+                self.cached_scene_id = self.current_scene_id
+                self.cached_effect_id = self.current_scene.current_effect_id
+                self.cached_palette_id = self.current_scene.current_palette_id
+            else:
+                self.cached_scene_id = 0
+                self.cached_effect_id = 0
+                self.cached_palette_id = 0
+    
+    def _has_actual_changes(self) -> bool:
+        """Check if there are any actual pattern changes (no logging)"""
+        if not self.current_scene or not self.has_pending_changes:
+            return False
+            
+        scene_changed = self.cached_scene_id != self.current_scene_id
+        effect_changed = self.cached_effect_id != self.current_scene.current_effect_id
+        palette_changed = self.cached_palette_id != self.current_scene.current_palette_id
+        
+        return scene_changed or effect_changed or palette_changed
+
+    def _has_pattern_changes(self) -> bool:
+        """Check if there are any pattern changes in cache (with logging)"""
+        with self._lock:
+            if not self.current_scene or not self.has_pending_changes:
+                return False
+                
+            scene_changed = self.cached_scene_id != self.current_scene_id
+            effect_changed = self.cached_effect_id != self.current_scene.current_effect_id
+            palette_changed = self.cached_palette_id != self.current_scene.current_palette_id
+            
+            logger.info(f"Change detection: scene={scene_changed}, effect={effect_changed}, palette={palette_changed}")
+            
+            return scene_changed or effect_changed or palette_changed
+    
+    def _create_cached_pattern_state(self) -> Optional[PatternState]:
+        """Create pattern state from cached values"""
+        if (self.cached_scene_id is None or 
+            self.cached_effect_id is None or 
+            self.cached_palette_id is None):
+            return None
+        
+        return PatternState(
+            scene_id=self.cached_scene_id,
+            effect_id=self.cached_effect_id,
+            palette_id=self.cached_palette_id
+        )
+    
+    def _clear_cache(self):
+        """Clear the pattern change cache"""
+        with self._lock:
+            self.cached_scene_id = None
+            self.cached_effect_id = None
+            self.cached_palette_id = None
+            self.has_pending_changes = False
+    
+    def get_cache_status(self) -> Dict[str, Any]:
+        """Get cache system status"""
+        with self._lock:
+            return {
+                "has_pending_changes": self.has_pending_changes,
+                "cached_scene_id": self.cached_scene_id,
+                "cached_effect_id": self.cached_effect_id,
+                "cached_palette_id": self.cached_palette_id,
+                "current_scene_id": self.current_scene_id,
+                "current_effect_id": self.current_scene.current_effect_id if self.current_scene else None,
+                "current_palette_id": self.current_scene.current_palette_id if self.current_scene else None,
+                "changes_detected": self.has_pending_changes and self._has_actual_changes(),
+                "dissolve_pattern_loaded": self.dissolve_patterns.current_pattern_id is not None
+            }
+    
+    # ==================== New Change Pattern Handler ====================
+    
+    def change_pattern(self) -> bool:
+        """
+        Execute cached pattern changes
+        Only executes if dissolve pattern is loaded AND changes are pending
+        """
+        try:
+            with self._lock:
+                if self.dissolve_patterns.current_pattern_id is None:
+                    logger.info("No dissolve pattern loaded - changes applied without transition")
+                    if self.has_pending_changes:
+                        self._clear_cache()
+                        self._notify_changes()
+                        self.stats['pattern_changes'] += 1
+                        self.is_initial = False
+                    return True
+                
+                if not self.has_pending_changes:
+                    return True
+                
+                if not self._has_pattern_changes():
+                    self._clear_cache()
+                    return True
+                
+                old_pattern = self._create_cached_pattern_state()
+                if not old_pattern:
+                    logger.warning("Cannot create old pattern state from cache")
+                    self._clear_cache()
+                    return False
+                
+                new_pattern = self._create_current_pattern_state()
+                if not new_pattern:
+                    logger.warning("Cannot create current pattern state")
+                    self._clear_cache()
+                    return False
+                
+                transition_type = self._determine_transition_type(old_pattern, new_pattern)
+                
+                self._execute_cached_dissolve(old_pattern, new_pattern, transition_type)
+                
+                self._clear_cache()
+                self._notify_changes()
+                self.stats['pattern_changes'] += 1
+                self.is_initial = False
+                
+                logger.info(f"Pattern change executed: {transition_type} transition with dissolve")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error executing pattern change: {e}")
+            self.stats['errors'] += 1
+            self._clear_cache()
+            return False
+    
+    def _determine_transition_type(self, old_pattern: PatternState, new_pattern: PatternState) -> str:
+        """Determine the type of transition based on pattern changes"""
+        if old_pattern.scene_id != new_pattern.scene_id:
+            return "scene"
+        elif old_pattern.effect_id != new_pattern.effect_id:
+            return "effect"
+        elif old_pattern.palette_id != new_pattern.palette_id:
+            return "palette"
+        else:
+            return "unknown"
+    
+    def _execute_cached_dissolve(self, old_pattern: PatternState, new_pattern: PatternState, transition_type: str):
+        """Execute dissolve transition with cached patterns"""
+        if self.dissolve_patterns.current_pattern_id is not None:
+            pattern = self.dissolve_patterns.get_pattern(self.dissolve_patterns.current_pattern_id)
+            if pattern:
+                led_count = self.current_scene.led_count if self.current_scene else 225
+                
+                if transition_type == "scene":
+                    self._restore_original_speeds(new_pattern.scene_id)
+                
+                self.dissolve_transition.start_dissolve(
+                    old_pattern,
+                    new_pattern,
+                    pattern,
+                    led_count
+                )
+                
+                logger.info(f"Dissolve started: {old_pattern.scene_id}.{old_pattern.effect_id}.{old_pattern.palette_id} → {new_pattern.scene_id}.{new_pattern.effect_id}.{new_pattern.palette_id}")
+    
+    # ==================== MODIFIED Scene Operations (Cache Only) ====================
+    
+    def change_scene(self, scene_id: int) -> bool:
+        """
+        MODIFIED: Change scene - NO automatic dissolve trigger
+        Only caches change, waits for change_pattern to execute dissolve
+        """
+        try:
+            with self._lock:
+                if scene_id not in self.scenes:
+                    available_scenes = list(self.scenes.keys())
+                    logger.warning(f"Scene {scene_id} not found. Available: {available_scenes}")
+                    return False
+                
+                if not self.has_pending_changes:
+                    self._cache_current_state()
+                    self.has_pending_changes = True
+                
+                old_scene_id = self.current_scene_id
+                
+                self.current_scene_id = scene_id
+                self.current_scene = self.scenes[scene_id]
+                
+                logger.info(f"Scene cached: {old_scene_id}→{scene_id} (waiting for change_pattern)")
+                
+                self.stats['scene_switches'] += 1
+                self._log_scene_status()
+                
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error caching scene change: {e}")
+            self.stats['errors'] += 1
+            return False
+    
+    def change_effect(self, effect_id: int) -> bool:
+        """
+        Only caches change, waits for change_pattern to execute dissolve
+        """
+        try:
+            with self._lock:
+                if not self.current_scene:
+                    logger.warning("No active scene for effect change")
+                    return False
+                
+                available_effects = list(range(len(self.current_scene.effects)))
+                if effect_id < 0 or effect_id >= len(self.current_scene.effects):
+                    logger.warning(f"Effect ID {effect_id} invalid. Available effects: {available_effects}")
+                    return False
+                
+                if not self.has_pending_changes:
+                    self._cache_current_state()
+                    self.has_pending_changes = True
+                
+                old_effect_id = self.current_scene.current_effect_id
+                
+                self.current_scene.current_effect_id = effect_id
+                
+                logger.info(f"Effect cached: {old_effect_id}→{effect_id}")
+                
+                self.stats['effect_changes'] += 1
+                self._log_scene_status()
+                
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error caching effect change: {e}")
+            self.stats['errors'] += 1
+            return False
+    
+    def change_palette(self, palette_id: int) -> bool:
+        """
+        MODIFIED: Change palette - NO automatic dissolve trigger
+        Only caches change, waits for change_pattern to execute dissolve
+        """
+        try:
+            with self._lock:
+                if not self.current_scene:
+                    logger.warning("No active scene for palette change")
+                    return False
+                
+                if palette_id >= len(self.current_scene.palettes):
+                    available_palettes = list(range(len(self.current_scene.palettes)))
+                    logger.warning(f"Palette {palette_id} not found. Available: {available_palettes}")
+                    return False
+                
+                if not self.has_pending_changes:
+                    self._cache_current_state()
+                    self.has_pending_changes = True
+                
+                old_palette_id = self.current_scene.current_palette_id
+                
+                self.current_scene.current_palette_id = palette_id
+                
+                logger.info(f"Palette cached: {old_palette_id}→{palette_id} (waiting for change_pattern)")
+                
+                self.stats['palette_changes'] += 1
+                self._log_scene_status()
+                
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error caching palette change: {e}")
+            self.stats['errors'] += 1
+            return False
+    
+    # ==================== PRESERVED Methods ====================
     
     def set_speed_percent(self, speed_percent: int):
         """Set current speed percentage and apply to current scene segments"""
@@ -172,6 +445,10 @@ class SceneManager:
                 
                 self.original_scene_speeds.clear()
                 
+                self.is_initial = True
+                self.has_pending_changes = False
+                self._clear_cache()
+                
                 scenes_loaded = 0
                 
                 for scene_data in scenes_data:
@@ -193,6 +470,8 @@ class SceneManager:
                         
                         self._restore_original_speeds(first_scene_id)
                     
+                    self.is_initial = False
+                    
                     self.stats['scenes_loaded'] += scenes_loaded
                     logger.info(f"Available scenes: {sorted(self.scenes.keys())}")
                     self._log_scene_status()
@@ -210,9 +489,30 @@ class SceneManager:
     def _log_scene_status(self):
         """Log current scene status"""
         if self.current_scene:
-            logger.info(f"Active scene: {self.current_scene_id} "
-                       f"(Effect: {self.current_scene.current_effect_id}, "
-                       f"Palette: {self.current_scene.current_palette_id})")
+            current_status = f"Scene={self.current_scene_id} Effect={self.current_scene.current_effect_id} Palette={self.current_scene.current_palette_id}"
+            
+            if self.has_pending_changes:
+                cached_status = f"CACHED: Scene={self.cached_scene_id} Effect={self.cached_effect_id} Palette={self.cached_palette_id}"
+                logger.info(f"CURRENT: {current_status}")
+                logger.info(f"{cached_status} (waiting for change_pattern)")
+            else:
+                logger.info(f"STATUS: {current_status}")
+    
+    def get_scene_info(self) -> Dict[str, Any]:
+        """Get current scene information"""
+        with self._lock:
+            if not self.current_scene:
+                return {}
+            
+            return {
+                'scene_id': self.current_scene_id,
+                'led_count': self.current_scene.led_count,
+                'fps': self.current_scene.fps,
+                'current_effect_id': self.current_scene.current_effect_id,
+                'current_palette_id': self.current_scene.current_palette_id,
+                'effects_count': len(self.current_scene.effects),
+                'palettes_count': len(self.current_scene.palettes)
+            }
     
     # ==================== Animation Update ====================
     
@@ -259,107 +559,98 @@ class SceneManager:
                                 new_effect.update_animation(original_delta)
                                 updated_effects.add(effect_key)
                 else:
-                    current_effect = self.current_scene.get_current_effect()
-                    if current_effect:
-                        current_effect.update_animation(original_delta)
+                    if self.is_initial:
+                        pass
+                    elif self.has_pending_changes and self.cached_scene_id is not None:
+                        scene_id = self.cached_scene_id
+                        effect_id = self.cached_effect_id if self.cached_effect_id is not None else 0
+                        
+                        if scene_id in self.scenes:
+                            cached_scene = self.scenes[scene_id]
+                            if effect_id < len(cached_scene.effects):
+                                cached_scene.effects[effect_id].update_animation(original_delta)
+                    else:
+                        if self.current_scene.current_effect_id < len(self.current_scene.effects):
+                            current_effect = self.current_scene.effects[self.current_scene.current_effect_id]
+                            current_effect.update_animation(original_delta)
                         
         except Exception as e:
-            logger.error(f"Error updating animation: {e}")
+            logger.error(f"Error updating effects animation: {e}")
     
-    # ==================== LED Output Methods ====================
-    
-    def get_rendered_led_array(self) -> List[List[int]]:
-        """Get final rendered LED array with dual pattern dissolve crossfade"""
-        try:
-            if self.dissolve_transition.is_active:
-                result = self.dissolve_transition.update_dissolve(time.time())
-                
-                if not self.dissolve_transition.is_active:
-                    self.stats['dissolve_transitions_completed'] += 1
-                    logger.info("Dual pattern dissolve transition completed")
-                
-                return result
-            else:
-                return self._get_current_led_array()
-                
-        except Exception as e:
-            logger.error(f"Error getting rendered LED array: {e}")
-            return [[0, 0, 0] for _ in range(225)]
-    
-    def get_led_output_with_timing(self, current_time: float) -> List[List[int]]:
-        """Get LED output with time-based brightness and dual pattern crossfade"""
+    def get_current_led_data(self, led_count: int) -> List[List[int]]:
+        """Get current LED data for rendering - FIXED: Use cached values when changes are pending"""
         try:
             with self._lock:
                 if not self.current_scene:
-                    return [[0, 0, 0] for _ in range(EngineSettings.ANIMATION.led_count)]
+                    return [[0, 0, 0] for _ in range(led_count)]
+                
+                current_time = time.time()
                 
                 if self.dissolve_transition.is_active:
                     return self.dissolve_transition.update_dissolve(current_time)
-                
-                current_effect = self.current_scene.get_current_effect()
-                if not current_effect:
-                    return [[0, 0, 0] for _ in range(self.current_scene.led_count)]
-                
-                led_array = [[0, 0, 0] for _ in range(self.current_scene.led_count)]
-                palette = self.current_scene.get_current_palette()
-                
-                current_effect.render_to_led_array(palette, current_time, led_array)
-                
-                return led_array
-                
+                else:
+                    led_array = [[0, 0, 0] for _ in range(led_count)]
+                    
+                    if self.is_initial:
+                        pass
+                    elif self.has_pending_changes and self.cached_scene_id is not None:
+                        scene_id = self.cached_scene_id
+                        effect_id = self.cached_effect_id if self.cached_effect_id is not None else 0
+                        palette_id = self.cached_palette_id if self.cached_palette_id is not None else 0
+                       
+                        if scene_id in self.scenes:
+                            cached_scene = self.scenes[scene_id]
+                            if effect_id < len(cached_scene.effects):
+                                effect = cached_scene.effects[effect_id]
+                                
+                                if palette_id < len(cached_scene.palettes):
+                                    palette = cached_scene.palettes[palette_id]
+                                else:
+                                    palette = [[255, 255, 255]] * 6
+                                
+                                effect.render_to_led_array(palette, current_time, led_array)
+                    else:
+                        if self.current_scene.current_effect_id < len(self.current_scene.effects):
+                            effect = self.current_scene.effects[self.current_scene.current_effect_id]
+                            
+                            if self.current_scene.current_palette_id < len(self.current_scene.palettes):
+                                palette = self.current_scene.palettes[self.current_scene.current_palette_id]
+                            else:
+                                palette = [[255, 255, 255]] * 6 
+                            
+                            effect.render_to_led_array(palette, current_time, led_array)
+                    
+                    return led_array
+                    
         except Exception as e:
-            logger.error(f"Error getting LED output with timing: {e}")
-            return [[0, 0, 0] for _ in range(225)]
-    
-    def _get_current_led_array(self) -> List[List[int]]:
-        """Get current LED array state for single pattern rendering"""
-        if not self.current_scene:
-            return [[0, 0, 0] for _ in range(225)]
-        
-        led_array = [[0, 0, 0] for _ in range(self.current_scene.led_count)]
-        current_effect = self.current_scene.get_current_effect()
-        
-        if current_effect:
-            palette = self.current_scene.get_current_palette()
-            current_effect.render_to_led_array(palette, time.time(), led_array)
-        
-        return led_array
+            logger.error(f"Error getting LED data: {e}")
+            return [[0, 0, 0] for _ in range(led_count)]
     
     # ==================== Dissolve Pattern Management ====================
     
-    def load_dissolve_json(self, file_path: str) -> bool:
+    def load_dissolve_patterns_from_file(self, file_path: str) -> bool:
         """Load dissolve patterns from JSON file"""
         try:
-            if not file_path.endswith('.json'):
-                file_path += '.json'
-            
-            success = self.dissolve_patterns.load_patterns_from_json(file_path)
-            if success:
-                logger.info(f"Loaded dissolve patterns from {file_path}")
-                pattern_ids = self.dissolve_patterns.get_available_patterns()
-                logger.info(f"Available dissolve patterns: {pattern_ids}")
-                
-                if self.dissolve_patterns.current_pattern_id is None and pattern_ids:
-                    self.dissolve_patterns.set_current_pattern(pattern_ids[0])
-                    logger.info(f"Auto-set dissolve pattern to {pattern_ids[0]}")
-            else:
-                logger.error(f"Failed to load dissolve patterns from {file_path}")
-            
-            return success
-            
+            return self.dissolve_patterns.load_patterns_from_json(file_path)
         except Exception as e:
-            logger.error(f"Error loading dissolve JSON: {e}")
+            logger.error(f"Error loading dissolve patterns: {e}")
             return False
     
     def set_dissolve_pattern(self, pattern_id: int) -> bool:
         """Set current dissolve pattern"""
         try:
+            available_patterns = self.dissolve_patterns.get_available_patterns()
+            
+            if pattern_id not in available_patterns:
+                logger.warning(f"Dissolve pattern {pattern_id} not found. Available: {available_patterns}")
+                return False
+            
             success = self.dissolve_patterns.set_current_pattern(pattern_id)
+            
             if success:
                 logger.info(f"Dissolve pattern set to {pattern_id}")
             else:
-                available = self.dissolve_patterns.get_available_patterns()
-                logger.warning(f"Dissolve pattern {pattern_id} not found. Available: {available}")
+                logger.warning(f"Failed to set dissolve pattern {pattern_id}")
             
             return success
             
@@ -392,212 +683,3 @@ class SceneManager:
             effect_id=self.current_scene.current_effect_id,
             palette_id=self.current_scene.current_palette_id
         )
-    
-    def _start_dual_dissolve_if_enabled(self, old_pattern: PatternState, new_pattern: PatternState, transition_type: str = "scene"):
-        """
-        Start dual pattern dissolve if pattern is set - with correct speed logic
-        
-        Logic:
-        - Fade out pattern (old): always keeps current speed (no changes)
-        - Fade in pattern (new): 
-          * Scene change: uses original JSON speeds (restore speeds)
-          * Effect/Palette change: keeps current speed (no changes - already correct)
-        
-        Args:
-            old_pattern: Old pattern state (will fade out)
-            new_pattern: New pattern state (will fade in)
-            transition_type: Type of transition ("scene", "effect", or "palette")
-        """
-        if self.dissolve_patterns.current_pattern_id is not None:
-            pattern = self.dissolve_patterns.get_pattern(self.dissolve_patterns.current_pattern_id)
-            if pattern:
-                led_count = self.current_scene.led_count if self.current_scene else 225
-                
-                self.dissolve_transition.start_dissolve(
-                    old_pattern,
-                    new_pattern,
-                    pattern,
-                    led_count
-                )
-    
-    # ==================== Scene Operations ====================
-    
-    def change_scene(self, scene_id: int) -> bool:
-        """
-        Change scene - speed logic handled in dissolve transition
-        - Old pattern (fade out): keeps current speed
-        - New pattern (fade in): uses original JSON speeds
-        """
-        try:
-            with self._lock:
-                if scene_id not in self.scenes:
-                    available_scenes = list(self.scenes.keys())
-                    logger.warning(f"Scene {scene_id} not found. Available: {available_scenes}")
-                    return False
-                
-                old_pattern = self._create_current_pattern_state()
-                old_scene_id = self.current_scene_id
-                
-                self.current_scene_id = scene_id
-                self.current_scene = self.scenes[scene_id]
-                
-                new_pattern = self._create_current_pattern_state()
-                
-                if old_pattern and new_pattern:
-                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern, "scene")
-                    
-                    if not self.dissolve_transition.is_active:
-                        self._restore_original_speeds(scene_id)
-                        logger.info(f"Scene {old_scene_id}→{scene_id}")
-                else:
-                    self._restore_original_speeds(scene_id)
-                    logger.info(f"Scene change to {scene_id}")
-                
-                self.stats['scene_switches'] += 1
-                self._log_scene_status()
-                self._notify_changes()
-                return True
-                
-        except Exception as e:
-            logger.error(f"Error changing scene: {e}")
-            self.stats['errors'] += 1
-            return False
-    
-    def change_effect(self, effect_id: int) -> bool:
-        """Change effect with consistent speed handling during dissolve"""
-        try:
-            with self._lock:
-                if not self.current_scene:
-                    logger.warning("No active scene for effect change")
-                    return False
-                
-                available_effects = list(range(len(self.current_scene.effects)))
-                if effect_id < 0 or effect_id >= len(self.current_scene.effects):
-                    logger.warning(f"Effect ID {effect_id} invalid. Available effects: {available_effects}")
-                    return False
-                
-                old_pattern = self._create_current_pattern_state()
-                old_effect_id = self.current_scene.current_effect_id
-                
-                self.current_scene.current_effect_id = effect_id
-                
-                new_pattern = self._create_current_pattern_state()
-                
-                if old_pattern and new_pattern:
-                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern, "effect")
-                    if self.dissolve_transition.is_active:
-                        logger.info(f"Effect {old_effect_id}→{effect_id}")
-                    else:
-                        logger.info(f"Effect {old_effect_id}→{effect_id}")
-                else:
-                    logger.info(f"Effect change to {effect_id}")
-                
-                self.stats['effect_changes'] += 1
-                self._log_scene_status()
-                self._notify_changes()
-                return True
-                
-        except Exception as e:
-            logger.error(f"Error changing effect: {e}")
-            self.stats['errors'] += 1
-            return False
-    
-    def change_palette(self, palette_id: int) -> bool:
-        """Change palette - only affects colors, not animation speed"""
-        try:
-            with self._lock:
-                if not self.current_scene:
-                    logger.warning("No active scene for palette change")
-                    return False
-                
-                if palette_id >= len(self.current_scene.palettes):
-                    logger.warning(f"Palette {palette_id} not found. Available: 0-{len(self.current_scene.palettes)-1}")
-                    return False
-                
-                old_pattern = self._create_current_pattern_state()
-                old_palette_id = self.current_scene.current_palette_id
-                self.current_scene.current_palette_id = palette_id
-                
-                new_pattern = self._create_current_pattern_state()
-                
-                if old_pattern and new_pattern:
-                    self._start_dual_dissolve_if_enabled(old_pattern, new_pattern, "palette")
-                    if self.dissolve_transition.is_active:
-                        logger.info(f"Palette {old_palette_id}→{palette_id}")
-                    else:
-                        logger.info(f"Palette {old_palette_id}→{palette_id}")
-                else:
-                    logger.info(f"Palette change to {palette_id}")
-                
-                self.stats['palette_changes'] += 1
-                self._log_scene_status()
-                self._notify_changes()
-                return True
-                
-        except Exception as e:
-            logger.error(f"Error changing palette: {e}")
-            self.stats['errors'] += 1
-            return False
-    
-    def update_palette_color(self, palette_id: int, color_id: int, r: int, g: int, b: int) -> bool:
-        """Update a color in the current scene's palette"""
-        try:
-            with self._lock:
-                if not self.current_scene:
-                    logger.warning("No active scene for palette color update")
-                    return False
-                
-                if palette_id >= len(self.current_scene.palettes):
-                    logger.warning(f"Palette {palette_id} not found")
-                    return False
-                
-                if color_id >= len(self.current_scene.palettes[palette_id]):
-                    logger.warning(f"Color {color_id} not found in palette {palette_id}")
-                    return False
-                
-                r = max(0, min(255, int(r)))
-                g = max(0, min(255, int(g)))
-                b = max(0, min(255, int(b)))
-                
-                self.current_scene.palettes[palette_id][color_id] = [r, g, b]
-                
-                logger.info(f"Palette {palette_id}[{color_id}] = RGB({r},{g},{b})")
-                self._notify_changes()
-                return True
-                
-        except Exception as e:
-            logger.error(f"Error updating palette color: {e}")
-            self.stats['errors'] += 1
-            return False
-    
-    # ==================== Status and Information ====================
-    
-    def get_scene_info(self) -> Dict[str, Any]:
-        """Get current scene information"""
-        with self._lock:
-            if not self.current_scene:
-                return {
-                    "error": "No active scene",
-                    "available_scenes": list(self.scenes.keys())
-                }
-            
-            available_effects = []
-            if hasattr(self.current_scene, 'effects'):
-                available_effects = list(range(len(self.current_scene.effects)))
-            
-            return {
-                "scene_id": self.current_scene_id,
-                "effect_id": self.current_scene.current_effect_id,
-                "palette_id": self.current_scene.current_palette_id,
-                "led_count": self.current_scene.led_count,
-                "fps": self.current_scene.fps,
-                "available_effects": available_effects,
-                "available_palettes": list(range(len(self.current_scene.palettes))),
-                "available_scenes": list(self.scenes.keys()),
-                "dissolve_info": self.get_dissolve_info()
-            }
-        
-    def get_available_scenes(self) -> List[int]:
-        """Get list of available scene IDs"""
-        with self._lock:
-            return list(self.scenes.keys())
