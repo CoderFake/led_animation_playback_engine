@@ -1,0 +1,39 @@
+{
+    "scenes": [
+      {
+        "scene_id": 0,
+        "led_count": 410,
+        "fps": 60,
+        "current_effect_id": 0,
+        "current_palette_id": 0,
+        "palettes": [
+          [
+            [255, 0, 0],
+            [0, 255, 0],
+            [0, 0, 255]
+          ]
+        ],
+        "effects": [
+          {
+            "effect_id": 0,
+            "segments": {
+              "0": {
+                "segment_id": 0,
+                "color": [0, 0],
+                "transparency": [0.0, 1.0],
+                "length": [50, 50],
+                "move_speed": 0.0,
+                "move_range": [0, 0],
+                "initial_position": 0,
+                "current_position": 0.0,
+                "is_edge_reflect": true,
+                "dimmer_time": [
+                  [1000, 100, 100]
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
