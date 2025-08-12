@@ -68,8 +68,12 @@ class ColorUtils:
     
     @staticmethod
     def apply_transparency(color, transparency: float) -> list:
-        """Apply transparency to color"""
+        """Apply transparency to color - FIXED: transparency=1.0 should be fully transparent"""
         transparency = max(0.0, min(1.0, transparency))
+        
+        if transparency >= 1.0:
+            return [0, 0, 0]
+        
         alpha_factor = 1.0 - transparency
         return [int(c * alpha_factor) for c in color]
     
@@ -141,3 +145,18 @@ class ColorUtils:
             ColorUtils.apply_master_brightness(color, master_brightness)
             for color in led_colors
         ]
+
+    @staticmethod
+    def interpolate_color(color1: list, color2: list, factor: float) -> list:
+        """Interpolate between two colors"""
+        factor = max(0.0, min(1.0, factor))
+        return [
+            int(color1[i] + (color2[i] - color1[i]) * factor)
+            for i in range(3)
+        ]
+
+    @staticmethod
+    def interpolate_transparency(transparency1: float, transparency2: float, factor: float) -> float:
+        """Interpolate between two transparency values"""
+        factor = max(0.0, min(1.0, factor))
+        return transparency1 + (transparency2 - transparency1) * factor

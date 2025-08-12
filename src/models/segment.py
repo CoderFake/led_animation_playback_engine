@@ -191,32 +191,40 @@ class Segment:
         
         try:
             for part_index in range(len(self.length)):
-                part_length = max(0, self.length[part_index])
-                
-                if part_length == 0:
+                part_length = self.length[part_index]
+                if part_length <= 0:
                     continue
                 
                 color_index = self.color[part_index] if part_index < len(self.color) else 0
                 transparency = self.transparency[part_index] if part_index < len(self.transparency) else 0.0
                 
+                # Check if we should interpolate to next segment
+                next_color_index = None
+                next_transparency = None
+                
+                if part_index + 1 < len(self.color):
+                    next_color_index = self.color[part_index + 1]
+                    next_transparency = self.transparency[part_index + 1] if part_index + 1 < len(self.transparency) else 0.0
+                
                 for led_in_part in range(part_length):
-                    base_color = ColorUtils.get_palette_color(palette, color_index)
+                    if next_color_index is not None and next_transparency is not None and part_length > 1:
+                        progress = led_in_part / (part_length - 1)
+                        
+                        base_color1 = ColorUtils.get_palette_color(palette, color_index)
+                        base_color2 = ColorUtils.get_palette_color(palette, next_color_index)
+                        interpolated_color = ColorUtils.interpolate_color(base_color1, base_color2, progress)
+                        
+                        interpolated_transparency = ColorUtils.interpolate_transparency(transparency, next_transparency, progress)
+                        
+                        final_color = ColorUtils.calculate_segment_color(
+                            interpolated_color, interpolated_transparency, brightness_factor
+                        )
+                    else:
+                        base_color = ColorUtils.get_palette_color(palette, color_index)
+                        final_color = ColorUtils.calculate_segment_color(
+                            base_color, transparency, brightness_factor
+                        )
                     
-                    final_color = ColorUtils.calculate_segment_color(
-                        base_color, transparency, brightness_factor
-                    )
-                    colors.append(final_color)
-            
-            if len(self.color) > len(self.length):
-                for extra_index in range(len(self.length), len(self.color)):
-                    color_index = self.color[extra_index]
-                    transparency = self.transparency[extra_index] if extra_index < len(self.transparency) else 0.0
-                    
-                    base_color = ColorUtils.get_palette_color(palette, color_index)
-                    
-                    final_color = ColorUtils.calculate_segment_color(
-                        base_color, transparency, brightness_factor
-                    )
                     colors.append(final_color)
             
             return colors
