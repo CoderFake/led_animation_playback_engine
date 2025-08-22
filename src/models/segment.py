@@ -81,47 +81,34 @@ class Segment:
         """Reset timing when segment direction changes or position resets"""
         self.segment_start_time = time.time()
     
-    def get_brightness_at_time(self, current_time: float) -> float:
-        """
-        Calculate brightness based on transition-based dimmer_time format
-        """
-        try:
-            if not self.dimmer_time:
-                return 1.0
-                
-            elapsed_ms = (current_time - self.segment_start_time) * 1000
-            
-            total_cycle_ms = sum(max(1, transition[0]) for transition in self.dimmer_time)
-            if total_cycle_ms <= 0:
-                return 1.0
-            
-            cycle_elapsed_ms = elapsed_ms % total_cycle_ms
-            
-            if cycle_elapsed_ms == 0 and elapsed_ms > 0:
-                cycle_elapsed_ms = total_cycle_ms
-            
-            current_time_ms = 0
-            for duration_ms, start_brightness, end_brightness in self.dimmer_time:
-                duration_ms = max(1, int(duration_ms))
-                
-                if cycle_elapsed_ms <= current_time_ms + duration_ms:
-                    progress = (cycle_elapsed_ms - current_time_ms) / duration_ms
-                    progress = max(0.0, min(1.0, progress))
-                    
-                    brightness = start_brightness + (end_brightness - start_brightness) * progress
-                    result = brightness / 100.0
-                    return max(0.0, min(1.0, result))
-                    
-                current_time_ms += duration_ms
-            
-            if self.dimmer_time:
-                last_brightness = self.dimmer_time[-1][2] 
-                return max(0.0, min(1.0, last_brightness / 100.0))
-            
+    def get_brightness_at_time(self, current_time):
+        if not self.dimmer_time or len(self.dimmer_time) == 0:
             return 1.0
-            
-        except Exception as e:
+        
+        if not hasattr(self, 'segment_start_time') or self.segment_start_time is None:
+            self.segment_start_time = current_time
+        
+        elapsed_time = (current_time - self.segment_start_time) * 1000
+        total_cycle_duration = sum(step[0] for step in self.dimmer_time)
+        
+        if total_cycle_duration <= 0:
             return 1.0
+        
+        cycle_position = elapsed_time % total_cycle_duration
+        accumulated_time = 0
+        
+        for step in self.dimmer_time:
+            duration, start_brightness, end_brightness = step
+            
+            if cycle_position <= accumulated_time + duration:
+                step_progress = (cycle_position - accumulated_time) / duration if duration > 0 else 0
+                brightness = start_brightness + (end_brightness - start_brightness) * step_progress
+                return max(0.0, min(1.0, brightness / 100.0))
+            
+            accumulated_time += duration
+        
+        last_step = self.dimmer_time[-1]
+        return max(0.0, min(1.0, last_step[2] / 100.0))
     
     def update_position(self, delta_time: float):
         """Update position with enhanced boundary enforcement"""
@@ -177,60 +164,40 @@ class Segment:
                         offset = self.current_position - effective_max_pos
                         self.current_position = int(min_pos + (offset % range_size))
 
-    def get_led_colors_with_timing(self, palette: List[List[int]], current_time: float) -> List[List[int]]:
-        """Get LED colors with improved time-based brightness and palette handling"""
-        if not self.color or not palette:
-            return []
-        
-        brightness_factor = self.get_brightness_at_time(current_time)
-        
-        if brightness_factor <= 0.0:
+    def get_led_colors_with_timing(self, palette, current_time):
+        if not palette or len(palette) == 0:
             return []
         
         colors = []
         
-        try:
-            for part_index in range(len(self.length)):
-                part_length = self.length[part_index]
-                if part_length <= 0:
-                    continue
-                
-                color_index = self.color[part_index] if part_index < len(self.color) else 0
-                transparency = self.transparency[part_index] if part_index < len(self.transparency) else 0.0
-                
-                # Check if we should interpolate to next segment
-                next_color_index = None
-                next_transparency = None
-                
-                if part_index + 1 < len(self.color):
-                    next_color_index = self.color[part_index + 1]
-                    next_transparency = self.transparency[part_index + 1] if part_index + 1 < len(self.transparency) else 0.0
-                
-                for led_in_part in range(part_length):
-                    if next_color_index is not None and next_transparency is not None and part_length > 1:
-                        progress = led_in_part / (part_length - 1)
-                        
-                        base_color1 = ColorUtils.get_palette_color(palette, color_index)
-                        base_color2 = ColorUtils.get_palette_color(palette, next_color_index)
-                        interpolated_color = ColorUtils.interpolate_color(base_color1, base_color2, progress)
-                        
-                        interpolated_transparency = ColorUtils.interpolate_transparency(transparency, next_transparency, progress)
-                        
-                        final_color = ColorUtils.calculate_segment_color(
-                            interpolated_color, interpolated_transparency, brightness_factor
-                        )
-                    else:
-                        base_color = ColorUtils.get_palette_color(palette, color_index)
-                        final_color = ColorUtils.calculate_segment_color(
-                            base_color, transparency, brightness_factor
-                        )
-                    
-                    colors.append(final_color)
+        for part_index in range(len(self.color)):
+            part_length = self.length[part_index] if part_index < len(self.length) else 0
             
-            return colors
+            if part_length <= 0:
+                continue
+                
+            color_index = self.color[part_index] if part_index < len(self.color) else 0
+            transparency = self.transparency[part_index] if part_index < len(self.transparency) else 0.0
             
-        except Exception as e:
-            return []
+            if color_index < 0 or color_index >= len(palette):
+                color_index = 0
+            
+            base_color = palette[color_index]
+            dimmer_factor = self.get_brightness_at_time(current_time)
+            opacity = 1.0 - transparency
+            final_brightness = opacity * dimmer_factor
+            
+            for led_in_part in range(part_length):
+                final_color = [
+                    int(base_color[0] * final_brightness),
+                    int(base_color[1] * final_brightness), 
+                    int(base_color[2] * final_brightness)
+                ]
+                
+                final_color = [max(0, min(255, c)) for c in final_color]
+                colors.append(final_color)
+        
+        return colors
 
     def render_to_led_array(self, palette, current_time: float, led_array) -> None:
         """Render segment to LED array with integer positioning"""
