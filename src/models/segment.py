@@ -30,7 +30,9 @@ class Segment:
     is_edge_reflect: bool = True
     dimmer_time: List[List[int]] = field(default_factory=lambda: [[1000, 0, 100]])
     segment_start_time: float = 0.0
-    
+    total_paused_time: float = 0.0 
+    is_paused: bool = False
+
     def __post_init__(self):
         """Initialize segment timing and validate data"""
         if self.current_position == 0:
@@ -78,8 +80,9 @@ class Segment:
         self.dimmer_time = validated_dimmer if validated_dimmer else [[1000, 0, 100]]
     
     def reset_animation_timing(self):
-        """Reset timing when segment direction changes or position resets"""
-        self.segment_start_time = time.time()
+        if not self.is_paused: 
+            self.segment_start_time = time.time()
+            self.total_paused_time = 0.0
     
     def get_brightness_at_time(self, current_time):
         if not self.dimmer_time or len(self.dimmer_time) == 0:
@@ -88,7 +91,7 @@ class Segment:
         if not hasattr(self, 'segment_start_time') or self.segment_start_time is None:
             self.segment_start_time = current_time
         
-        elapsed_time = (current_time - self.segment_start_time) * 1000
+        elapsed_time = (current_time - self.segment_start_time - self.total_paused_time) * 1000
         total_cycle_duration = sum(step[0] for step in self.dimmer_time)
         
         if total_cycle_duration <= 0:
@@ -327,6 +330,19 @@ class Segment:
         self.current_position = int(self.initial_position)
         self.reset_animation_timing()
     
+    def pause_segment(self):
+        if not hasattr(self, 'pause_start_time'):
+            self.pause_start_time = time.time()
+            self.is_paused = True
+
+    def resume_segment(self):
+        if hasattr(self, 'pause_start_time') and self.is_paused:
+            pause_duration = time.time() - self.pause_start_time
+            self.total_paused_time += pause_duration
+            delattr(self, 'pause_start_time')
+            self.is_paused = False
+
+
     def is_active(self) -> bool:
         """Check if the segment is active"""
         try:

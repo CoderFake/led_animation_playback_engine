@@ -295,10 +295,7 @@ class AnimationEngine:
 
     
     def handle_pause(self, address: str, *args):
-        """NEW: Handle /pause - Pause animation and OSC output"""
         try:
-
-            
             with self.pause_lock:
                 if self.animation_paused:
                     LoggingUtils.log_warning("Animation", "Animation is already paused")
@@ -307,27 +304,38 @@ class AnimationEngine:
                 
                 self.animation_paused = True
                 
+                current_scene = self.scene_manager.get_current_scene()
+                if current_scene:
+                    current_effect = current_scene.get_current_effect()
+                    if current_effect and hasattr(current_effect, 'segments'):
+                        for segment in current_effect.segments.values():
+                            if hasattr(segment, 'pause_segment'):
+                                segment.pause_segment()
+                
                 with self._lock:
                     self.stats.animation_running = False
                 
                 LoggingUtils.log_info("Animation", "Animation paused - OSC output stopped")
-
                 
         except Exception as e:
             error_message = f"Error in handle_pause: {e}"
             LoggingUtils.log_error("Animation", error_message)
-
     
     def handle_resume(self, address: str, *args):
-        """NEW: Handle /resume - Resume animation and OSC output"""
         try:
-
-            
             with self.pause_lock:
                 if not self.animation_paused:
                     LoggingUtils.log_warning("Animation", "Animation is not paused")
                     OSCLogger.log_processed(address, "not_paused")
                     return
+                
+                current_scene = self.scene_manager.get_current_scene()
+                if current_scene:
+                    current_effect = current_scene.get_current_effect()
+                    if current_effect and hasattr(current_effect, 'segments'):
+                        for segment in current_effect.segments.values():
+                            if hasattr(segment, 'resume_segment'):
+                                segment.resume_segment()
                 
                 self.animation_paused = False
                 
@@ -335,13 +343,11 @@ class AnimationEngine:
                     self.stats.animation_running = self.animation_running
                 
                 LoggingUtils.log_info("Animation", "Animation resumed - OSC output restarted")
-
                 
         except Exception as e:
             error_message = f"Error in handle_resume: {e}"
             LoggingUtils.log_error("Animation", error_message)
 
-    
     def handle_set_speed_percent(self, address: str, *args):
         """Handle speed change with proper scene manager integration"""
         try:
