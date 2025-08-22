@@ -23,7 +23,6 @@ class ColorUtils:
         if led_index < 0 or led_index >= len(led_array):
             return
             
-        # Always store contribution for averaging
         if led_index not in ColorUtils._led_contributions:
             ColorUtils._led_contributions[led_index] = []
         ColorUtils._led_contributions[led_index].append((color[:3], weight))
@@ -84,19 +83,36 @@ class ColorUtils:
         return [int(c * brightness) for c in color]
     
     @staticmethod
-    def calculate_segment_color(base_color, transparency: float, brightness: float) -> list:
-        """Calculate final segment color with transparency and brightness"""
-        color = ColorUtils.clamp_color(base_color)
-        color = ColorUtils.apply_transparency(color, transparency)
-        color = ColorUtils.apply_brightness(color, brightness)
-        return color
+    def calculate_segment_color(base_color, transparency, brightness_factor):
+        opacity = 1.0 - max(0.0, min(1.0, transparency))
+        
+        final_color = [
+            int(base_color[0] * opacity * brightness_factor),
+            int(base_color[1] * opacity * brightness_factor),
+            int(base_color[2] * opacity * brightness_factor)
+        ]
+    
+        return [max(0, min(255, c)) for c in final_color]
     
     @staticmethod
-    def get_palette_color(palette, color_index: int) -> list:
-        """Get color from palette with index validation"""
-        if not palette or color_index < 0 or color_index >= len(palette):
+    def get_palette_color(palette, color_index):
+        if not palette or len(palette) == 0:
             return [0, 0, 0]
-        return palette[color_index][:3] if len(palette[color_index]) >= 3 else [0, 0, 0]
+        
+        if color_index < 0 or color_index >= len(palette):
+            return [0, 0, 0]
+        
+        color = palette[color_index]
+        
+        if len(color) < 3:
+            return [0, 0, 0]
+        
+        return [
+            max(0, min(255, int(color[0]))),
+            max(0, min(255, int(color[1]))),
+            max(0, min(255, int(color[2])))
+        ]
+
     
     @staticmethod
     def apply_master_brightness(color, master_brightness: int) -> list:
