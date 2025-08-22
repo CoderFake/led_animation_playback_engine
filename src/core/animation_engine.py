@@ -304,7 +304,7 @@ class AnimationEngine:
                 
                 self.animation_paused = True
                 
-                current_scene = self.scene_manager.get_current_scene()
+                current_scene = self.scene_manager.current_scene
                 if current_scene:
                     current_effect = current_scene.get_current_effect()
                     if current_effect and hasattr(current_effect, 'segments'):
@@ -329,7 +329,7 @@ class AnimationEngine:
                     OSCLogger.log_processed(address, "not_paused")
                     return
                 
-                current_scene = self.scene_manager.get_current_scene()
+                current_scene = self.scene_manager.current_scene
                 if current_scene:
                     current_effect = current_scene.get_current_effect()
                     if current_effect and hasattr(current_effect, 'segments'):

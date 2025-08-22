@@ -3,10 +3,11 @@ Segment model - Improved time-based dimmer and fractional positioning
 Zero-origin IDs with stable brightness calculations and boundary checking
 """
 
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 from dataclasses import dataclass, field
 import time
 import math
+
 from ..utils.validation import ValidationUtils, DataSanitizer, log_validation_error
 from ..utils.logging import LoggingUtils, AnimationLogger
 from ..utils.color_utils import ColorUtils
@@ -32,6 +33,7 @@ class Segment:
     segment_start_time: float = 0.0
     total_paused_time: float = 0.0 
     is_paused: bool = False
+    pause_start_time: Optional[float] = None 
 
     def __post_init__(self):
         """Initialize segment timing and validate data"""
@@ -80,18 +82,38 @@ class Segment:
         self.dimmer_time = validated_dimmer if validated_dimmer else [[1000, 0, 100]]
     
     def reset_animation_timing(self):
+        """Reset animation timing but preserve pause state and accumulated pause time"""
         if not self.is_paused: 
             self.segment_start_time = time.time()
-            self.total_paused_time = 0.0
+    
+    def pause_segment(self):
+        """Pause the segment animation"""
+        if not self.is_paused:
+            self.pause_start_time = time.time()
+            self.is_paused = True
+
+    def resume_segment(self):
+        """Resume the segment animation with position continuity"""
+        if self.is_paused and self.pause_start_time is not None:
+            pause_duration = time.time() - self.pause_start_time
+            self.total_paused_time += pause_duration
+            
+            self.pause_start_time = None
+            self.is_paused = False
     
     def get_brightness_at_time(self, current_time):
+        """Get brightness with proper pause handling - FIXED"""
         if not self.dimmer_time or len(self.dimmer_time) == 0:
             return 1.0
         
         if not hasattr(self, 'segment_start_time') or self.segment_start_time is None:
             self.segment_start_time = current_time
         
-        elapsed_time = (current_time - self.segment_start_time - self.total_paused_time) * 1000
+        if self.is_paused and self.pause_start_time is not None:
+            elapsed_time = (self.pause_start_time - self.segment_start_time - self.total_paused_time) * 1000
+        else:
+            elapsed_time = (current_time - self.segment_start_time - self.total_paused_time) * 1000
+        
         total_cycle_duration = sum(step[0] for step in self.dimmer_time)
         
         if total_cycle_duration <= 0:
@@ -114,8 +136,8 @@ class Segment:
         return max(0.0, min(1.0, last_step[2] / 100.0))
     
     def update_position(self, delta_time: float):
-        """Update position with enhanced boundary enforcement"""
-        if abs(self.move_speed) < 0.001:
+        """Update position with enhanced boundary enforcement and pause handling"""
+        if self.is_paused or abs(self.move_speed) < 0.001:
             return
         
         if not hasattr(self, '_fractional_accumulator'):
@@ -152,7 +174,7 @@ class Segment:
                         self.move_speed = -abs(self.move_speed)
                         direction_changed = True
                 
-                if direction_changed:
+                if direction_changed and not self.is_paused:
                     self.reset_animation_timing()
                     self._fractional_accumulator = 0.0 
             else:
@@ -181,6 +203,9 @@ class Segment:
                 
             color_index = self.color[part_index] if part_index < len(self.color) else 0
             transparency = self.transparency[part_index] if part_index < len(self.transparency) else 0.0
+
+            if transparency >= 1.0:
+                continue 
             
             if color_index < 0 or color_index >= len(palette):
                 color_index = 0
@@ -189,7 +214,10 @@ class Segment:
             dimmer_factor = self.get_brightness_at_time(current_time)
             opacity = 1.0 - transparency
             final_brightness = opacity * dimmer_factor
-            
+
+            if final_brightness <= 0.0:
+                continue
+
             for led_in_part in range(part_length):
                 final_color = [
                     int(base_color[0] * final_brightness),
@@ -227,6 +255,11 @@ class Segment:
                     
                     if 0 <= final_led_index < len(led_array):
                         validated_color = ColorUtils.validate_rgb_color(segment_colors[led_index])
+                        led_transparency = self.get_transparency_for_led_index(led_index)
+
+                        if led_transparency >= 1.0:
+                            continue 
+                            
                         ColorUtils.add_colors_to_led_array(led_array, final_led_index, validated_color)
                 return
             
@@ -329,19 +362,6 @@ class Segment:
         """Reset the position to the initial position and restart timing"""
         self.current_position = int(self.initial_position)
         self.reset_animation_timing()
-    
-    def pause_segment(self):
-        if not hasattr(self, 'pause_start_time'):
-            self.pause_start_time = time.time()
-            self.is_paused = True
-
-    def resume_segment(self):
-        if hasattr(self, 'pause_start_time') and self.is_paused:
-            pause_duration = time.time() - self.pause_start_time
-            self.total_paused_time += pause_duration
-            delattr(self, 'pause_start_time')
-            self.is_paused = False
-
 
     def is_active(self) -> bool:
         """Check if the segment is active"""
